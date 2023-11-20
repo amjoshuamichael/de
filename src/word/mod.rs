@@ -8,37 +8,41 @@ pub struct WordControl {
     //wide: bool,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum WordID {
     Baby,
+    Wide,
+    Tall,
 }
 
 pub struct WordData {
-    basic: String,
+    pub basic: String,
     // TODO: this would store more information about the word, like tenses, etc..
 }
 
 #[derive(Resource, Default)]
-pub struct Words(HashMap<WordID, WordData>);
+pub struct Words(pub HashMap<WordID, WordData>);
 
 new_key_type! { pub struct PhraseID; }
 
 #[derive(Debug)]
-pub enum PhraseData {
-    Noun {
-        word: Option<WordID>,
-        adjective: PhraseID,
-    },
-    Adjective {
-        word: Option<WordID>,
-    },
+pub struct PhraseData {
+    pub word: Option<WordID>,
+    pub kind: PhraseKind,
 }
 
-#[derive(Component)]
+#[derive(Debug)]
+pub enum PhraseKind {
+    Noun { 
+        adjective: PhraseID,
+    },
+    Adjective,
+}
+
+#[derive(Debug, Component)]
 pub struct SentenceStructure {
     pub sentence: SlotMap<PhraseID, PhraseData>,
     pub root: PhraseID,
-    pub ui_parent: Option<Entity>,
 }
 
 #[derive(Event)]
