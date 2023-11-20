@@ -1,45 +1,43 @@
-use bevy::prelude::*;
+#![allow(unused)] // allows for faster prototyping without warnings
+use bevy::{prelude::*, utils::HashMap};
+use slotmap::*;
 
-mod word_ui;
+mod word;
+use word::*;
 
 fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
-            word_ui::UIPlugin,
+            word::ui::UIPlugin,
         ))
         .add_systems(Startup, setup)
         .add_systems(FixedUpdate, movement)
+        .init_resource::<Words>()
         .run();
 }
 
-#[derive(Component, Default)]
-pub struct WordControl {
-    wide: bool,
-}
-
-#[derive(Component)]
-pub struct Movement;
-
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
-    commands.spawn((
-        SpriteBundle {
-            texture: asset_server.load("square_pale.bmp"),
-            transform: Transform {
-                scale: Vec3::ONE * 8.0,
-                ..default()
-            },
-            ..default()
-        },
-        WordControl::default(),
-        Movement,
-    ));
+
+    let mut map = SlotMap::<PhraseID, PhraseData>::with_key();
+    let adjective = map.insert(PhraseData::Adjective {
+        word: None,
+    });
+    let root = map.insert(PhraseData::Noun {
+        word: None,
+        adjective,
+    });
+    commands.spawn(SentenceStructure {
+        sentence: map,
+        root,
+        ui_parent: None,
+    });
 }
 
 fn movement(
     input: Res<Input<KeyCode>>,
-    mut movers: Query<&mut Transform, With<Movement>>,
+    mut movers: Query<&mut Transform, With<SentenceStructure>>,
 ) {
     const MOVE_X_SPEED: f32 = 2.0;
     for mut mover in &mut movers {

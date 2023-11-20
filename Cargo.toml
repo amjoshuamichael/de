@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.12.0", features = ["bmp"] }
+slotmap = "1.0.6"
 
