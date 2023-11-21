@@ -2,27 +2,35 @@
 // in general, try to run cargo fix --allow-dirty before each commit.
 #![allow(unused_variables)]
 #![allow(unused_imports)]
-use map_macro::hash_map;
 
 use bevy::{prelude::*, utils::HashMap};
 use slotmap::*;
 
 mod word;
+mod world;
 mod load_assets;
 
 use word::*;
 use load_assets::*;
+use world::*;
 
 fn main() {
     App::new()
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                .set(bevy::asset::AssetPlugin {
+                    mode: AssetMode::Unprocessed,
+                    ..default()
+                 }),
             word::ui::UIPlugin,
             load_assets::AssetPlugin,
+            world::WorldPlugin,
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, remake_player_character)
         .add_systems(FixedUpdate, movement)
+        .insert_resource(Msaa::Off) // disable anti-aliasing, this is a pixel game
         .insert_resource::<Words>(Words({
             let mut map = HashMap::new();
             map.insert(WordID::Baby, WordData { basic: "Baby".into(), });
@@ -159,12 +167,10 @@ fn modify_with_adjective(
         PhraseData { word: None, .. } => {}
         PhraseData { word: Some(word), kind: PhraseKind::Adjective } => {
             match word {
-                WordID::Wide => {
-                    bundle.transform.scale.x = 4.0;
-                },
-                WordID::Tall => {
-                    bundle.transform.scale.y = 4.0;
-                },
+                WordID::Wide => 
+                    { bundle.transform.scale.x = 4.0; },
+                WordID::Tall => 
+                    { bundle.transform.scale.y = 4.0; },
                 _ => todo!(),
             }
         }
