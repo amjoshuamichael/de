@@ -4,6 +4,7 @@
 #![allow(unused_imports)]
 
 use bevy::{prelude::*, utils::HashMap};
+use bevy_rapier2d::prelude::*;
 use slotmap::*;
 
 mod word;
@@ -26,9 +27,15 @@ fn main() {
             word::ui::UIPlugin,
             load_assets::AssetPlugin,
             world::WorldPlugin,
+            RapierPhysicsPlugin::<NoUserData>::default(),
+            RapierDebugRenderPlugin { enabled: false, ..default() },
         ))
         .add_systems(Startup, setup)
-        .add_systems(Update, remake_player_character)
+        .add_systems(Update, (
+            optional_debug_physics_view,
+            remake_player_character,
+            camera,
+        ))
         .add_systems(FixedUpdate, movement)
         .insert_resource(Msaa::Off) // disable anti-aliasing, this is a pixel game
         .insert_resource::<Words>(Words({
@@ -66,7 +73,17 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         root,
     });
 
-    commands.spawn(PlayerBundle::default());
+    commands.spawn((
+        PlayerBundle {
+            transform: Transform {
+                translation: Vec3::new(1.0, 4.0, 0.0) * 16.0,
+                ..default()
+            },
+            ..default()
+        },
+        RigidBody::Dynamic,
+        Collider::cuboid(16.0, 16.0),
+    ));
 }
 
 #[derive(Component, Default)]
@@ -110,7 +127,7 @@ pub struct WordObjectBundle {
 fn remake_player_character(
     mut structure_change_evt: EventReader<SentenceStructureChanged>,
     sentences: Query<&SentenceStructure>,
-    current_players: Query<Entity, With<Player>>,
+    current_players: Query<(&Transform, Entity), With<Player>>,
     mut commands: Commands,
     assets: Res<DeAssets>,
 ) {
@@ -118,16 +135,10 @@ fn remake_player_character(
     let player = current_players.single();
 
     for change in structure_change_evt.read() {
-        commands.entity(player).despawn_descendants();
+        commands.entity(player.1).despawn_descendants();
         let sentence = sentences.get(change.on).unwrap();
         
         spawn_with_noun(sentence.root, &sentence, &mut commands, &*assets, player);
-        match &sentence.sentence[sentence.root] {
-            PhraseData { word: Some(word), kind: PhraseKind::Noun { adjective }} => {
-                let bundle = WordObjectBundle::default();
-            },
-            _ => {},
-        }
     }
 }
 
@@ -136,7 +147,7 @@ fn spawn_with_noun(
     sentence: &SentenceStructure,
     commands: &mut Commands,
     assets: &DeAssets,
-    player_parent: Entity,
+    player_parent: (&Transform, Entity),
 ) {
     match &sentence.sentence[sentence.root] {
         PhraseData { word: None, .. } => {},
@@ -148,7 +159,8 @@ fn spawn_with_noun(
             match word {
                 WordID::Baby => {
                     bundle.texture = assets.square_pale.clone();
-                    commands.spawn(bundle).set_parent(player_parent);
+                    //bundle.transform = *player_parent.0;
+                    commands.spawn(bundle).set_parent(player_parent.1);
                 },
                 _ => {},
             }
@@ -175,5 +187,27 @@ fn modify_with_adjective(
             }
         }
         _ => {},
+    }
+}
+
+fn camera(
+    mut camera: Query<&mut Transform, With<Camera2d>>,
+    player: Query<&Transform, (With<Player>, Without<Camera2d>)>,
+) {
+    const CAMERA_SPEED: f32 = 0.1;
+    let player = player.single();
+    let mut camera = camera.single_mut();
+    camera.translation = camera.translation.lerp(player.translation, CAMERA_SPEED);
+}
+
+pub const CONTROL_KEY: KeyCode = 
+    if cfg!(windows) { KeyCode::ControlLeft } else { KeyCode::SuperLeft };
+
+fn optional_debug_physics_view(
+    keyboard: Res<Input<KeyCode>>,
+    mut physics_debug_context: ResMut<DebugRenderContext>,
+) {
+    if keyboard.pressed(CONTROL_KEY) && keyboard.just_pressed(KeyCode::D) {
+        physics_debug_context.enabled = !physics_debug_context.enabled;
     }
 }

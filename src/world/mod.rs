@@ -1,8 +1,9 @@
-use bevy::{prelude::*, asset::{*, io::*, saver::*, processor::*}, app::AppExit, window::exit_on_all_closed};
+use bevy::{prelude::*, asset::{*, io::*, saver::*, processor::*}, app::AppExit, window::exit_on_all_closed, ecs::query::WorldQuery};
+use bevy_rapier2d::prelude::*;
 use bevy_simple_tilemap::prelude::*;
 use serde::*;
 
-use crate::load_assets::DeAssets;
+use crate::{load_assets::DeAssets, *};
 
 mod editor;
 
@@ -94,26 +95,38 @@ fn setup_tilemap(
     commands.spawn((tilemap_bundle, LoadedWorld { handle: world, loaded: false }));
 }
 
+#[derive(WorldQuery)]
+#[world_query(mutable)]
+pub struct TileMapQuery {
+    tilemap: &'static mut TileMap,
+    asset: &'static mut LoadedWorld,
+    entity: Entity,
+}
+
 fn spawn_world_on_load(
-    mut tilemaps: Query<(&mut TileMap, &mut LoadedWorld)>,
+    mut tilemaps: Query<TileMapQuery>,
     mut world_assets: ResMut<Assets<DeWorld>>,
     asset_server: Res<AssetServer>,
+    mut commands: Commands,
 ) {
     for mut tilemap in &mut tilemaps {
-        if tilemap.1.loaded { continue }
-        let Some(state) = asset_server.get_load_state(tilemap.1.handle.id()) else { continue };
+        if tilemap.asset.loaded { continue }
+        let Some(state) = asset_server.get_load_state(tilemap.asset.handle.id()) 
+            else { continue };
 
         // in debug builds, create a new world file if one doesn't load.
         if state == LoadState::Failed || state == LoadState::Loaded {
-            let world_asset_id = tilemap.1.handle.id(); 
+            let world_asset_id = tilemap.asset.handle.id(); 
 
             #[cfg(debug_assertions)]
-            if state == LoadState::Failed {
+            if state == LoadState::Failed && world_assets.get(tilemap.asset.handle.id()).is_none() {
                 world_assets.insert(world_asset_id, DeWorld::default());
             }
 
-            tilemap.1.loaded = true;
-            load_world(world_asset_id, &*world_assets, &mut tilemap.0);
+            commands.entity(tilemap.entity).despawn_descendants();
+
+            tilemap.asset.loaded = true;
+            load_world(world_asset_id, &*world_assets, &mut tilemap, &mut commands);
         }
     }
 }
@@ -121,9 +134,13 @@ fn spawn_world_on_load(
 fn load_world(
     world_asset_id: AssetId<DeWorld>,
     world_assets: &Assets<DeWorld>,
-    tilemap: &mut TileMap,
+    tilemap: &mut TileMapQueryItem,
+    commands: &mut Commands,
 ) {
     let world = world_assets.get(world_asset_id).unwrap();
+
+    tilemap.tilemap.clear();
+    commands.entity(tilemap.entity).despawn_descendants();
 
     for x in 0..(WORLD_SIZE.x as usize) {
         for y in 0..(WORLD_SIZE.y as usize) {
@@ -133,17 +150,78 @@ fn load_world(
             if tile == TileIndex::Air {  
                 //tilemap.set_tile(position, None);
             } else {
-                tilemap.set_tile(position, Some(Tile {
+                tilemap.tilemap.set_tile(position, Some(Tile {
                     sprite_index: tile as u32,
                     ..default()
                 }));
             }
         }
     }
+
+    let world_colliders = calculate_world_colliders(world);
+    for collider in world_colliders {
+        commands.spawn(collider).set_parent(tilemap.entity);
+    }
 }
 
-const CONTROL_KEY: KeyCode = 
-    if cfg!(windows) { KeyCode::ControlLeft } else { KeyCode::SuperLeft };
+#[derive(Default, Bundle)]
+struct WorldCollderBundle {
+    global: GlobalTransform,
+    transform: Transform,
+    rigidbody: RigidBody,
+    collider: Collider,
+}
+
+fn calculate_world_colliders(world: &DeWorld) -> Vec<WorldCollderBundle> {
+    let mut filled = [[false; WORLD_SIZE.x as usize]; WORLD_SIZE.y as usize];
+
+    let mut output = Vec::<WorldCollderBundle>::new();
+
+    for start_x in 0..(WORLD_SIZE.x as usize) {
+        for start_y in 0..(WORLD_SIZE.y as usize) {
+            let mut x = start_x;
+            let mut y = start_y;
+
+            if world.tiles[y][x] != TileIndex::Air && !filled[y][x] {
+                while x < WORLD_SIZE.x as usize &&
+                    world.tiles[y][x] != TileIndex::Air && 
+                    !filled[y][x] {
+                    x += 1;
+                }
+
+                while y < WORLD_SIZE.y as usize &&
+                    world.tiles[y][start_x..x].iter().all(|t| *t != TileIndex::Air) &&
+                    filled[y][start_x..x].iter().all(|f| !*f) {
+                    y += 1;
+                }
+
+                for fill_x in start_x..x {
+                    for fill_y in start_y..y {
+                        filled[fill_y][fill_x] = true;
+                    }
+                }
+
+                let rect = Rect {
+                    min: Vec2::new(start_x as f32, start_y as f32) * 16.0,
+                    max: Vec2::new(x as f32, y as f32) * 16.0,
+                };
+
+                output.push(WorldCollderBundle {
+                    transform: Transform {
+                        translation: (rect.center() - Vec2::splat(8.)).extend(0.),
+                        ..default()
+                    },
+                    // we divide by 2 because cuboid takes half sizes
+                        collider: Collider::cuboid(rect.size().x / 2., rect.size().y / 2.),
+                    rigidbody: RigidBody::Fixed,
+                    ..default()
+                })
+            }
+        }
+    }
+
+    output
+}
 
 fn save_world(
     exit_events: EventReader<AppExit>,

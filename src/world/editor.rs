@@ -24,10 +24,21 @@ pub fn set_mouse_world_coords(
 pub fn edit_world(
     mut tilemaps: Query<(&Transform, &mut LoadedWorld)>,
     mouse_button: Res<Input<MouseButton>>,
+    keys: Res<Input<KeyCode>>,
     mut world_assets: ResMut<Assets<DeWorld>>,
     mouse_world_coords: Res<MouseWorldCoords>,
     mut gizmos: Gizmos,
+    mut edit_mode: Local<bool>,
 ) {
+    let edit_mode = &mut *edit_mode;
+
+    if keys.just_pressed(KeyCode::T) {
+        *edit_mode = !*edit_mode;
+        info!("edit_mode: {edit_mode:?}");
+    }
+
+    if !*edit_mode { return };
+
     if !mouse_button.just_pressed(MouseButton::Left) { return };
     let Some(mouse_position) = mouse_world_coords.position else { return };
 
