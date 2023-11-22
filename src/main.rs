@@ -3,6 +3,8 @@
 #![allow(unused_variables)]
 #![allow(unused_imports)]
 
+#![feature(exact_size_is_empty)]
+
 use bevy::{prelude::*, utils::HashMap};
 use bevy_rapier2d::prelude::*;
 use slotmap::*;

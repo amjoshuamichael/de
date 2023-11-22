@@ -14,7 +14,7 @@ pub fn spawn_player(mut commands: Commands) {
         Player,
         SpatialBundle {
             transform: Transform {
-                translation: Vec3::new(1.0, 2.0, 0.0) * 16.0,
+                translation: Vec3::new(50.0, 50.0, 0.0) * 16.0,
                 ..default()
             },
             ..default()

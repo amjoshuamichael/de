@@ -26,11 +26,19 @@ impl Plugin for WorldPlugin {
     }
 }
 
-const WORLD_SIZE: UVec2 = UVec2::splat(10);
+const WORLD_SIZE: UVec2 = UVec2::splat(100);
 
-#[derive(Debug, Resource, Asset, TypePath, Serialize, Deserialize, Default)]
+#[derive(Debug, Resource, Asset, TypePath, Serialize, Deserialize)]
 pub struct DeWorld {
-    tiles: [[TileIndex; WORLD_SIZE.x as usize]; WORLD_SIZE.y as usize],
+    tiles: Vec<Vec<TileIndex>>,
+}
+
+impl Default for DeWorld {
+    fn default() -> Self {
+        Self {
+            tiles: vec![vec![TileIndex::Air; WORLD_SIZE.x as usize]; WORLD_SIZE.y as usize],
+        }
+    }
 }
 
 struct WorldLoader;

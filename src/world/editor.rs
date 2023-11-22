@@ -39,18 +39,16 @@ pub fn edit_world(
 
     if !*edit_mode { return };
 
-    if !mouse_button.just_pressed(MouseButton::Left) { return };
     let Some(mouse_position) = mouse_world_coords.position else { return };
 
     for mut tilemap in &mut tilemaps {
         let pos_on_map = mouse_position - tilemap.0.translation.xy();
         gizmos.circle_2d(pos_on_map, 10.0, Color::GREEN);
-        gizmos.circle_2d(mouse_position, 10.0, Color::BLUE);
-        gizmos.circle_2d(tilemap.0.translation.xy(), 10.0, Color::RED);
+
+        if mouse_button.get_pressed().is_empty() { return };
+
         let tile_pos = (pos_on_map + 8.0) / 16.0;
         let tile_pos = (tile_pos.x as usize, tile_pos.y as usize);
-
-        if !mouse_button.just_pressed(MouseButton::Left) { return };
 
         let world = world_assets.get_mut(tilemap.1.handle.id()).unwrap();
 
@@ -59,7 +57,11 @@ pub fn edit_world(
             continue;
         }
         
-        world.tiles[tile_pos.1][tile_pos.0] = TileIndex::Ground;
+        world.tiles[tile_pos.1][tile_pos.0] = if mouse_button.pressed(MouseButton::Left) {
+            TileIndex::Ground
+        } else {
+            TileIndex::Air
+        };
         tilemap.1.loaded = false;
     }
 }
