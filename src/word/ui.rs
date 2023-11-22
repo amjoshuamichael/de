@@ -36,23 +36,6 @@ pub struct WordSnapPoint {
     sentence: Entity,
 }
 
-pub struct UIPlugin;
-
-impl Plugin for UIPlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .add_systems(Startup, setup_word_ui)
-            .add_event::<SentenceStructureChanged>()
-            .add_systems(Update, (
-                update_sentence_ui,
-                update_word_ui,
-                unsnap,
-                do_drag.after(unsnap),
-                do_snap.after(do_drag),
-            ));
-    }
-}
-
 const TEXT_OBJECTS_Z_INDEX: ZIndex = ZIndex::Global(30);
 
 fn word_bundle_for(word_id: WordID, assets: &DeAssets) 
@@ -84,7 +67,7 @@ fn word_bundle_for(word_id: WordID, assets: &DeAssets)
     )
 }
 
-fn setup_word_ui(
+pub fn setup_word_ui(
     mut commands: Commands,
     assets: Res<DeAssets>,
 ) {
@@ -249,7 +232,7 @@ pub struct QDraggableWord {
     parent: &'static Parent,
 }
 
-fn do_drag(
+pub fn do_drag(
     mut draggables: Query<QDraggableWord>,
     mut mouse_motion: EventReader<MouseMotion>,
 ) {
@@ -268,7 +251,7 @@ fn do_drag(
     }
 }
 
-fn unsnap(
+pub fn do_unsnap(
     mut draggables: Query<QDraggableWord>,
     snap_points: Query<&WordSnapPoint>,
     mut sentences: Query<&mut SentenceStructure>,
@@ -303,7 +286,7 @@ fn unsnap(
     }
 }
 
-fn do_snap(
+pub fn do_snap(
     mut draggables: Query<QDraggableWord>,
     snap_points: Query<(&GlobalTransform, Entity, &Node, &WordSnapPoint)>,
     mut sentences: Query<&mut SentenceStructure>,

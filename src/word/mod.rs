@@ -2,6 +2,33 @@ use bevy::{prelude::*, utils::HashMap};
 use slotmap::*;
 
 pub mod ui;
+pub mod movement;
+pub mod spawn;
+
+pub use movement::*;
+
+pub struct PlayerPlugin;
+
+impl Plugin for PlayerPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_systems(Startup, ui::setup_word_ui)
+            .add_event::<SentenceStructureChanged>()
+            .add_systems(Update, (
+                ui::update_sentence_ui,
+                ui::update_word_ui,
+                ui::do_unsnap,
+                ui::do_drag.after(ui::do_unsnap),
+                ui::do_snap.after(ui::do_drag),
+            ))
+            .add_systems(Update, (
+                spawn::remake_player_character,
+                spawn::deactivate_inactive_sentence_structures.after(spawn::remake_player_character),
+            ))
+            .add_systems(Startup, movement::spawn_player)
+            .add_systems(Update, movement::do_movement);
+    }
+}
 
 #[derive(Component, Default)]
 pub struct WordControl {
@@ -39,10 +66,13 @@ pub enum PhraseKind {
     Adjective,
 }
 
+/// Components that act as the parent of a word collection. For example, the player has a
+/// SentenceStructure.
 #[derive(Debug, Component)]
 pub struct SentenceStructure {
     pub sentence: SlotMap<PhraseID, PhraseData>,
     pub root: PhraseID,
+    pub active: bool,
 }
 
 #[derive(Event)]
