@@ -1,8 +1,4 @@
-use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
-
-use crate::load_assets::DeAssets;
-
+use crate::prelude::*;
 use super::*;
 
 enum SentenceParseError {
@@ -58,8 +54,7 @@ fn spawn_with_noun(
                 WordID::Baby => {
                     bundle.texture = assets.square_pale.clone();
                     let collider = Collider::cuboid(8.0, 8.0);
-                    let friction = Friction::default();
-                    commands.spawn((bundle, collider, friction)).set_parent(parent);
+                    commands.spawn((bundle, collider)).set_parent(parent);
                 },
                 _ => return Err(SentenceParseError::Other),
             }

@@ -1,8 +1,4 @@
-use bevy::{ecs::query::WorldQuery, prelude::*};
-use bevy_rapier2d::prelude::*;
-use slotmap::SlotMap;
-
-use crate::lerp;
+use crate::prelude::*;
 
 use super::{PhraseData, PhraseKind, PhraseID, SentenceStructure};
 
@@ -22,6 +18,7 @@ pub fn spawn_player(mut commands: Commands) {
         RigidBody::default(),
         AdditionalMassProperties::Mass(10.0),
         Velocity::default(),
+        LockedAxes::ROTATION_LOCKED,
         {
             let mut map = SlotMap::<PhraseID, PhraseData>::with_key();
             let adjective = map.insert(PhraseData {

@@ -5,9 +5,26 @@
 
 #![feature(exact_size_is_empty)]
 
-use bevy::{prelude::*, utils::HashMap};
-use bevy_rapier2d::prelude::*;
-use slotmap::*;
+// put a use crate::prelude::* at the top of every file
+pub mod prelude {
+    #![allow(ambiguous_glob_reexports)]
+    pub use bevy::{prelude::*, utils::HashMap, ecs::query::WorldQuery};
+    pub use bevy_rapier2d::prelude::*;
+    pub use slotmap::*;
+    pub use serde::*;
+
+    pub use super::load_assets::DeAssets;
+
+    pub const CONTROL_KEY: KeyCode = 
+        if cfg!(windows) { KeyCode::ControlLeft } else { KeyCode::SuperLeft };
+
+    pub fn lerp(a: f32, b: f32, n: f32) -> f32 {
+        debug_assert!(n >= 0. && n <= 1.);
+        a * (1. - n) + b * n
+    }
+}
+
+use prelude::*;
 
 mod word;
 mod world;
@@ -17,10 +34,7 @@ use word::*;
 use load_assets::*;
 use world::*;
 
-fn lerp(a: f32, b: f32, n: f32) -> f32 {
-    debug_assert!(n >= 0. && n <= 1.);
-    a * (1. - n) + b * n
-}
+
 
 fn main() {
     App::new()
@@ -76,9 +90,6 @@ fn camera(
     let mut camera = camera.single_mut();
     camera.translation = camera.translation.lerp(player.translation, CAMERA_SPEED);
 }
-
-pub const CONTROL_KEY: KeyCode = 
-    if cfg!(windows) { KeyCode::ControlLeft } else { KeyCode::SuperLeft };
 
 fn optional_debug_physics_view(
     keyboard: Res<Input<KeyCode>>,

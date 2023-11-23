@@ -1,9 +1,6 @@
-use bevy::{prelude::*, asset::{*, io::*, saver::*, processor::*}, app::AppExit, window::exit_on_all_closed, ecs::query::WorldQuery};
-use bevy_rapier2d::prelude::*;
+use crate::prelude::*;
+use bevy::{asset::{*, io::*}, app::AppExit, window::exit_on_all_closed};
 use bevy_simple_tilemap::prelude::*;
-use serde::*;
-
-use crate::{load_assets::DeAssets, *};
 
 mod editor;
 

@@ -1,5 +1,4 @@
-use bevy::{prelude::*, utils::HashMap};
-use slotmap::*;
+use crate::prelude::*;
 
 pub mod ui;
 pub mod movement;

@@ -1,5 +1,6 @@
-use bevy::{prelude::*, window::*};
-use bevy_simple_tilemap::TileMap;
+use crate::prelude::*;
+use bevy::window::*;
+use bevy_simple_tilemap::*;
 
 use super::{LoadedWorld, DeWorld, TileIndex, WORLD_SIZE};
 
