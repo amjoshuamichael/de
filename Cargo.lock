@@ -893,6 +893,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_simple_text_input"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ceeeee4876eb735100420481baafc28341d95db4363977c776f8867b96b5bcdb"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "bevy_simple_tilemap"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1553,6 +1562,7 @@ dependencies = [
  "bevy",
  "bevy_rapier2d",
  "bevy_simple_tilemap",
+ "graybox",
  "ron",
  "serde",
  "slotmap",
@@ -1965,6 +1975,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bf0b36e6f090b7e1d8a4b49c0cb81c1f8376f72198c65dd3ad9ff3556b8b78c"
 dependencies = [
  "bitflags 2.4.1",
+]
+
+[[package]]
+name = "graybox"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_simple_text_input",
+ "serde",
+ "slotmap",
 ]
 
 [[package]]

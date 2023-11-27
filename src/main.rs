@@ -12,6 +12,7 @@ pub mod prelude {
     pub use bevy_rapier2d::prelude::*;
     pub use slotmap::*;
     pub use serde::*;
+    pub use graybox::*;
 
     pub use super::load_assets::DeAssets;
 
@@ -34,8 +35,6 @@ use word::*;
 use load_assets::*;
 use world::*;
 
-
-
 fn main() {
     App::new()
         .add_plugins((
@@ -50,12 +49,17 @@ fn main() {
             world::WorldPlugin,
             RapierPhysicsPlugin::<NoUserData>::default(),
             RapierDebugRenderPlugin { enabled: false, ..default() },
+            graybox::GrayboxPlugin {
+                open_graybox_command: vec![CONTROL_KEY, KeyCode::G],
+            },
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, (
             optional_debug_physics_view,
             camera,
         ))
+        .enable_inspection::<Transform>()
+        .enable_inspection::<Velocity>()
         .insert_resource(Msaa::Off) // disable anti-aliasing, this is a pixel game
         .insert_resource::<Words>(Words({
             let mut map = HashMap::new();
@@ -68,17 +72,19 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2dBundle {
-        projection: OrthographicProjection {
-            far: 1000.,
-            near: -1000.,
-            scale: 0.25,
+    commands.spawn((
+        Camera2dBundle {
+            projection: OrthographicProjection {
+                far: 1000.,
+                near: -1000.,
+                scale: 0.25,
+                ..default()
+            },
             ..default()
         },
-        ..default()
-    });
-
-    }
+        Name::new("Camera"),
+    ));
+}
 
 
 fn camera(

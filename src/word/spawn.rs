@@ -54,7 +54,7 @@ fn spawn_with_noun(
                 WordID::Baby => {
                     bundle.texture = assets.square_pale.clone();
                     let collider = Collider::cuboid(8.0, 8.0);
-                    commands.spawn((bundle, collider)).set_parent(parent);
+                    commands.spawn((bundle, collider, Name::new("Baby"))).set_parent(parent);
                 },
                 _ => return Err(SentenceParseError::Other),
             }

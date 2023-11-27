@@ -102,6 +102,7 @@ pub fn setup_word_ui(
             ..default()
         },
     )).id();
+
     let _da = commands.spawn(TextBundle {
         text: Text::from_section(
             "Da",
@@ -213,6 +214,7 @@ pub fn spawn_snap_for(
                     for_phrase: phrase,
                     sentence: sentence.0,
                 },
+                Name::new("Word Snap Point"),
             )).set_parent(word_snap_parent);
         },
     }

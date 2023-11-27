@@ -17,8 +17,14 @@ pub struct DeAssets {
     pub font: Handle<Font>,
 }
 
-fn load_assets(asset_server: Res<AssetServer>, mut assets: ResMut<DeAssets>) {
+fn load_assets(
+    asset_server: Res<AssetServer>, 
+    mut assets: ResMut<DeAssets>,
+    mut graybox: ResMut<graybox::GrayboxSettings>,
+) {
     assets.square_pale = asset_server.load("square_pale.bmp");
     assets.tileset = asset_server.load("tileset.bmp");
-    assets.font = asset_server.load("fonts/tempfont.ttf");
+    let font = asset_server.load("fonts/tempfont.ttf");
+    assets.font = font.clone();
+    graybox.font = font.clone();
 }

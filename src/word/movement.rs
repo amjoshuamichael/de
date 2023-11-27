@@ -35,6 +35,7 @@ pub fn spawn_player(mut commands: Commands) {
                 active: false,
             }
         },
+        Name::new("Player"),
     ));
 }
 

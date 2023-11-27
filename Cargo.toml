@@ -1,3 +1,5 @@
+workspace = { members = ["crates/graybox"] }
+
 [package]
 name = "de"
 version = "0.1.0"
@@ -10,3 +12,5 @@ bevy_rapier2d = "0.23.0"
 ron = "*"
 serde = "*"
 slotmap = "1.0.6"
+
+graybox = { path = "crates/graybox" }

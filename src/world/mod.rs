@@ -97,7 +97,11 @@ fn setup_tilemap(
 
     let world = asset_server.load("jungle.world.ron");
 
-    commands.spawn((tilemap_bundle, LoadedWorld { handle: world, loaded: false }));
+    commands.spawn((
+        tilemap_bundle, 
+        LoadedWorld { handle: world, loaded: false },
+        Name::new("World"),
+    ));
 }
 
 #[derive(WorldQuery)]
