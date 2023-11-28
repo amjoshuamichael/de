@@ -1,12 +1,15 @@
 use crate::prelude::*;
 
-use super::{PhraseData, PhraseKind, PhraseID, SentenceStructure};
+use super::{PhraseData, PhraseKind, PhraseID, SentenceStructure, Vocabulary, WordID, ui::VocabChange};
 
 #[derive(Component, Default)]
 pub struct Player;
 
-pub fn spawn_player(mut commands: Commands) {
-    commands.spawn((
+pub fn spawn_player(
+    mut commands: Commands,
+    mut vocab_changes: EventWriter<VocabChange>,
+) {
+    let player = commands.spawn((
         Player,
         SpatialBundle {
             transform: Transform {
@@ -35,8 +38,15 @@ pub fn spawn_player(mut commands: Commands) {
                 active: false,
             }
         },
+        Vocabulary::default(),
         Name::new("Player"),
-    ));
+    )).id();
+
+    dbg!(&player);
+    vocab_changes.send(VocabChange::Added {
+        word: WordID::Baby,
+        to: player,
+    });
 }
 
 #[derive(WorldQuery)]

@@ -1,6 +1,5 @@
 // allows for faster prototyping without warnings.
 // in general, try to run cargo fix --allow-dirty before each commit.
-#![allow(unused_variables)]
 #![allow(unused_imports)]
 
 #![feature(exact_size_is_empty)]
@@ -14,7 +13,7 @@ pub mod prelude {
     pub use serde::*;
     pub use graybox::*;
 
-    pub use super::load_assets::DeAssets;
+    pub use super::load_assets::MiscAssets;
 
     pub const CONTROL_KEY: KeyCode = 
         if cfg!(windows) { KeyCode::ControlLeft } else { KeyCode::SuperLeft };
@@ -47,31 +46,32 @@ fn main() {
             word::PlayerPlugin,
             load_assets::AssetPlugin,
             world::WorldPlugin,
+            world::dropdown::DropdownPlugin,
             RapierPhysicsPlugin::<NoUserData>::default(),
             RapierDebugRenderPlugin { enabled: false, ..default() },
             graybox::GrayboxPlugin {
                 open_graybox_command: vec![CONTROL_KEY, KeyCode::G],
             },
         ))
-        .add_systems(Startup, setup)
+        .add_systems(Startup, setup_camera)
         .add_systems(Update, (
             optional_debug_physics_view,
-            camera,
+            camera_update,
         ))
         .enable_inspection::<Transform>()
         .enable_inspection::<Velocity>()
         .insert_resource(Msaa::Off) // disable anti-aliasing, this is a pixel game
         .insert_resource::<Words>(Words({
             let mut map = HashMap::new();
-            map.insert(WordID::Baby, WordData { basic: "Baby".into(), });
-            map.insert(WordID::Wide, WordData { basic: "Wide".into(), });
-            map.insert(WordID::Tall, WordData { basic: "Tall".into(), });
+            map.insert(WordID::Baby, WordData { basic: "Baby", ..default() });
+            map.insert(WordID::Wide, WordData { basic: "Wide", ..default() });
+            map.insert(WordID::Tall, WordData { basic: "Tall", ..default() });
             map
         }))
         .run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup_camera(mut commands: Commands) {
     commands.spawn((
         Camera2dBundle {
             projection: OrthographicProjection {
@@ -87,7 +87,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 
-fn camera(
+fn camera_update(
     mut camera: Query<&mut Transform, With<Camera2d>>,
     player: Query<&Transform, (With<Player>, Without<Camera2d>)>,
 ) {

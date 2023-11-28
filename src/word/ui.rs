@@ -3,25 +3,15 @@ use bevy::ecs::query::WorldQuery;
 use bevy::input::mouse::MouseMotion;
 use bevy::ui::Interaction;
 
-use crate::load_assets::DeAssets;
+use crate::load_assets::MiscAssets;
 
-use super::{PhraseID, SentenceStructure, PhraseData, SentenceStructureChanged, WordID, Words, PhraseKind};
+use super::{PhraseID, SentenceStructure, PhraseData, SentenceStructureChanged, WordID, Words, PhraseKind, Vocabulary};
 
 #[derive(Component)]
 pub struct DraggableWord {
     is_being_dragged: bool,
     is_snapped: bool,
     word_id: WordID,
-}
-
-impl DraggableWord {
-    fn for_word(word_id: WordID) -> Self {
-        Self {
-            is_being_dragged: false,
-            is_snapped: false,
-            word_id,
-        }
-    }
 }
 
 #[derive(Component, Default)]
@@ -38,42 +28,53 @@ pub struct WordSnapPoint {
 
 const TEXT_OBJECTS_Z_INDEX: ZIndex = ZIndex::Global(30);
 
-fn word_bundle_for(word_id: WordID, assets: &DeAssets) 
-    -> (TextBundle, DraggableWord, Interaction) {
-    (
-        TextBundle {
-            text: Text::from_section(
-                "",
-                TextStyle {
-                    // This font is loaded and will be used instead of the default font.
-                    font: assets.font.clone(),
-                    font_size: 100.0,
+#[derive(Bundle)]
+pub struct DraggableWordBundle {
+    text: TextBundle,
+    draggable: DraggableWord,
+    interaction: Interaction,
+}
+
+impl DraggableWordBundle {
+    fn for_word(word_id: WordID, assets: &MiscAssets) -> Self {
+        DraggableWordBundle {
+            text: TextBundle {
+                text: Text::from_section(
+                    "",
+                    TextStyle {
+                        font: assets.font.clone(),
+                        font_size: 100.0,
+                        ..default()
+                    }
+                ),
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    top: Val::Px(0.0),
+                    left: Val::Px(0.0),
+                    padding: UiRect::all(Val::Px(10.0)),
                     ..default()
-                }
-            ),
-            style: Style {
-                position_type: PositionType::Absolute,
-                top: Val::Px(0.0),
-                left: Val::Px(0.0),
-                padding: UiRect::all(Val::Px(10.0)),
+                },
+                background_color: BackgroundColor::from(Color::DARK_GREEN),
+                z_index: TEXT_OBJECTS_Z_INDEX,
                 ..default()
             },
-            background_color: BackgroundColor::from(Color::DARK_GREEN),
-            z_index: TEXT_OBJECTS_Z_INDEX,
-            ..default()
-        },
-        DraggableWord::for_word(word_id),
-        Interaction::default(),
-    )
+            draggable: DraggableWord {
+                is_being_dragged: false,
+                is_snapped: false,
+                word_id,
+            },
+            interaction: Interaction::default(),
+        }
+    }
 }
 
 pub fn setup_word_ui(
     mut commands: Commands,
-    assets: Res<DeAssets>,
+    assets: Res<MiscAssets>,
 ) {
     // Draggable word parent is the parent of all of the words that aren't currently 
     // snapped. When words get snapped, they are childfren of their snap point.
-    let draggable_word_parent = commands.spawn((
+    let _draggable_word_parent = commands.spawn((
         NodeBundle {
             style: Style {
                 width: Val::Percent(100.0),
@@ -81,14 +82,8 @@ pub fn setup_word_ui(
             },
             ..default()
         },
-        DraggableWordParent::default(),
+        DraggableWordParent,
     )).id();
-
-    commands.entity(draggable_word_parent).with_children(|commands| {
-        commands.spawn(word_bundle_for(WordID::Baby, &*assets));
-        commands.spawn(word_bundle_for(WordID::Wide, &*assets));
-        commands.spawn(word_bundle_for(WordID::Tall, &*assets));
-    });
 
     let word_snap_parent = commands.spawn((
         WordSnapParent,
@@ -148,7 +143,36 @@ pub fn update_word_ui(
 ) {
     for (word, mut text) in &mut added_words {
         let word = &word_map.0[&word.word_id];
-        text.sections[0].value = word.basic.clone();
+        text.sections[0].value = word.basic.to_string();
+    }
+}
+
+#[derive(Event)]
+pub enum VocabChange {
+    Added {
+        word: WordID,
+        to: Entity,
+    },
+}
+
+pub fn update_vocabulary(
+    mut vocabularies: Query<&mut Vocabulary>,
+    draggable_parent: Query<Entity, With<DraggableWordParent>>,
+    mut vocab_changes: EventReader<VocabChange>,
+    mut commands: Commands,
+    assets: Res<MiscAssets>,
+) {
+    let draggable_parent = draggable_parent.single();
+    for vocab_change in vocab_changes.read() {
+        match vocab_change {
+            VocabChange::Added { word, to } => {
+                let mut vocabulary = vocabularies.get_mut(*to).unwrap();
+                vocabulary.words.insert(*word);
+                commands
+                    .spawn(DraggableWordBundle::for_word(*word, &*assets))
+                    .set_parent(draggable_parent);
+            },
+        }
     }
 }
 
@@ -226,8 +250,7 @@ pub struct QDraggableWord {
     style: &'static mut Style,
     node: &'static Node,
     interaction: &'static Interaction,
-    transform: &'static Transform, // we don't have to read transform, it is set 
-                                   // automatically by the bevy UI library
+    transform: &'static Transform,
     draggable: &'static mut DraggableWord,
     global_transform: &'static GlobalTransform,
     entity: Entity,

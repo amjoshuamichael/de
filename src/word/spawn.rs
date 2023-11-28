@@ -21,7 +21,7 @@ pub fn remake_player_character(
     mut structure_change_evt: EventReader<SentenceStructureChanged>,
     mut sentences: Query<(&mut SentenceStructure, Entity)>,
     mut commands: Commands,
-    assets: Res<DeAssets>,
+    assets: Res<MiscAssets>,
 ) {
     for change in structure_change_evt.read() {
         let mut sentence = sentences.get_mut(change.on).unwrap();
@@ -40,7 +40,7 @@ fn spawn_with_noun(
     word: PhraseID,
     sentence: &SentenceStructure,
     commands: &mut Commands,
-    assets: &DeAssets,
+    assets: &MiscAssets,
     parent: Entity,
 ) -> Result<(), SentenceParseError> {
     match &sentence.sentence[sentence.root] {
@@ -53,7 +53,7 @@ fn spawn_with_noun(
             match word {
                 WordID::Baby => {
                     bundle.texture = assets.square_pale.clone();
-                    let collider = Collider::cuboid(8.0, 8.0);
+                    let collider = (Collider::cuboid(8.0, 8.0), CollidingEntities::default());
                     commands.spawn((bundle, collider, Name::new("Baby"))).set_parent(parent);
                 },
                 _ => return Err(SentenceParseError::Other),
@@ -69,7 +69,7 @@ fn modify_with_adjective(
     word: PhraseID,
     sentence: &SentenceStructure,
     bundle: &mut WordObjectBundle,
-    assets: &DeAssets,
+    assets: &MiscAssets,
 ) -> Result<(), SentenceParseError> {
     match &sentence.sentence[word] {
         PhraseData { word: None, .. } => {},

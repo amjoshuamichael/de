@@ -1,8 +1,13 @@
-use crate::prelude::*;
+use crate::{prelude::*, word::WordID};
 use bevy::{asset::{*, io::*}, app::AppExit, window::exit_on_all_closed};
 use bevy_simple_tilemap::prelude::*;
+use ron::ser::PrettyConfig;
+
+use self::editor::WorldEditorState;
 
 mod editor;
+pub mod dropdown;
+mod word_tag;
 
 pub struct WorldPlugin;
 
@@ -12,14 +17,27 @@ impl Plugin for WorldPlugin {
             .add_systems(Startup, setup_tilemap)
             .add_systems(Update, (
                 save_world,
-                editor::set_mouse_world_coords,
-                editor::edit_world,
+                spawn_world_on_load,
             ))
+            .add_state::<WorldEditorState>()
+            .add_systems(Update, (
+                editor::set_mouse_world_coords,
+                editor::open_world_editor,
+                editor::update_positions_for_world,
+                editor::edit_world
+                    .after(editor::setup_world_editor_gui)
+                    .run_if(in_state(WorldEditorState::On)),
+            ).chain())
+            .add_systems(Update, (
+                word_tag::init_word_tags,
+                word_tag::word_tags_update,
+            ))
+            .add_systems(OnEnter(WorldEditorState::On), editor::setup_world_editor_gui)
+            .add_systems(OnExit(WorldEditorState::On), editor::teardown_world_editor_gui)
             .add_plugins(SimpleTileMapPlugin)
             .init_asset::<DeWorld>()
             .init_resource::<editor::MouseWorldCoords>()
-            .register_asset_loader(WorldLoader)
-            .add_systems(Update, spawn_world_on_load);
+            .register_asset_loader(WorldLoader);
     }
 }
 
@@ -28,12 +46,21 @@ const WORLD_SIZE: UVec2 = UVec2::splat(100);
 #[derive(Debug, Resource, Asset, TypePath, Serialize, Deserialize)]
 pub struct DeWorld {
     tiles: Vec<Vec<TileIndex>>,
+    #[serde(default)]
+    word_tags: Vec<WordTagInWorld>,
+}
+
+#[derive(Debug, Asset, TypePath, Serialize, Deserialize)]
+struct WordTagInWorld {
+    word_id: WordID,
+    transform: Transform,
 }
 
 impl Default for DeWorld {
     fn default() -> Self {
         Self {
             tiles: vec![vec![TileIndex::Air; WORLD_SIZE.x as usize]; WORLD_SIZE.y as usize],
+            word_tags: Vec::new(),
         }
     }
 }
@@ -51,7 +78,7 @@ impl AssetLoader for WorldLoader {
         &'a self,
         reader: &'a mut Reader,
         _settings: &'a Self::Settings,
-        load_context: &'a mut LoadContext,
+        _load_context: &'a mut LoadContext,
     ) -> BoxedFuture<'a, Result<DeWorld, Self::Error>> {
         Box::pin(async move {
             let mut bytes = Vec::new();
@@ -76,11 +103,27 @@ pub enum TileIndex {
 #[derive(Component)]
 pub struct LoadedWorld {
     handle: Handle<DeWorld>,
-    loaded: bool,
+}
+
+#[derive(Default, Component)]
+pub struct WordTag {
+    word_id: WordID,
+}
+
+#[derive(Default, Bundle)]
+pub struct WordTagBundle {
+    word_tag: WordTag,
+    sprite: SpriteBundle,
+    collider: Collider,
+    colliding: CollidingEntities,
+    rigidbody: RigidBody,
+    events: ActiveEvents,
+    sensor: Sensor,
+    name: Name,
 }
 
 fn setup_tilemap(
-    assets: Res<DeAssets>,
+    assets: Res<MiscAssets>,
     mut commands: Commands,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     asset_server: Res<AssetServer>,
@@ -99,7 +142,7 @@ fn setup_tilemap(
 
     commands.spawn((
         tilemap_bundle, 
-        LoadedWorld { handle: world, loaded: false },
+        LoadedWorld { handle: world },
         Name::new("World"),
     ));
 }
@@ -115,11 +158,20 @@ pub struct TileMapQuery {
 fn spawn_world_on_load(
     mut tilemaps: Query<TileMapQuery>,
     mut world_assets: ResMut<Assets<DeWorld>>,
+    de_assets: Res<MiscAssets>,
     asset_server: Res<AssetServer>,
     mut commands: Commands,
+    mut asset_events: EventReader<AssetEvent<DeWorld>>,
 ) {
-    for mut tilemap in &mut tilemaps {
-        if tilemap.asset.loaded { continue }
+    for asset_event in asset_events.read() {
+        let (AssetEvent::Modified { id } | AssetEvent::Added { id }) = *asset_event 
+            else { continue };
+
+        let mut tilemap = tilemaps
+            .iter_mut()
+            .find(|tilemap| tilemap.asset.handle.id() == id)
+            .unwrap();
+
         let Some(state) = asset_server.get_load_state(tilemap.asset.handle.id()) 
             else { continue };
 
@@ -134,20 +186,18 @@ fn spawn_world_on_load(
 
             commands.entity(tilemap.entity).despawn_descendants();
 
-            tilemap.asset.loaded = true;
-            load_world(world_asset_id, &*world_assets, &mut tilemap, &mut commands);
+            let world = world_assets.get(world_asset_id).unwrap();
+            load_world(world, &*de_assets, &mut tilemap, &mut commands);
         }
     }
 }
 
 fn load_world(
-    world_asset_id: AssetId<DeWorld>,
-    world_assets: &Assets<DeWorld>,
+    world: &DeWorld,
+    assets: &MiscAssets,
     tilemap: &mut TileMapQueryItem,
     commands: &mut Commands,
 ) {
-    let world = world_assets.get(world_asset_id).unwrap();
-
     tilemap.tilemap.clear();
     commands.entity(tilemap.entity).despawn_descendants();
 
@@ -170,6 +220,19 @@ fn load_world(
     let world_colliders = calculate_world_colliders(world);
     for collider in world_colliders {
         commands.spawn(collider).set_parent(tilemap.entity);
+    }
+
+    for word_tag in &world.word_tags {
+        commands.spawn(WordTagBundle {
+            word_tag: WordTag { word_id: word_tag.word_id },
+            sprite: SpriteBundle {
+                transform: word_tag.transform,
+                ..default()
+            },
+            rigidbody: RigidBody::Fixed,
+            events: ActiveEvents::all(),
+            ..default()
+        }).set_parent(tilemap.entity);
     }
 }
 
@@ -233,7 +296,6 @@ fn calculate_world_colliders(world: &DeWorld) -> Vec<WorldCollderBundle> {
 }
 
 fn save_world(
-    exit_events: EventReader<AppExit>,
     world_assets: Res<Assets<DeWorld>>,
     asset_server: Res<AssetServer>,
     keyboard: Res<Input<KeyCode>>,
@@ -248,7 +310,8 @@ fn save_world(
             
             info!("saving world asset {file_path:?}");
 
-            let serialized_world = ron::ser::to_string(world)
+            let config = PrettyConfig::new();
+            let serialized_world = ron::ser::to_string_pretty(world, config)
                 .expect("unable to serialize world");
             write(file_path, &*serialized_world).expect("unable to write {file_path:?}");
         }

@@ -24,22 +24,23 @@ pub fn do_timed_interactions(
     if mouse.just_pressed(MouseButton::Left) {
         let now = Instant::now();
 
-        if let Some(last_click) = *last_click && 
-            now.duration_since(last_click) < DOUBLE_CLICK_TIME {
+        if let Some(last) = *last_click && now.duration_since(last) < DOUBLE_CLICK_TIME {
             for mut timed_interaction in &mut timed_interactions {
                 if *timed_interaction.1 == Interaction::Pressed {
                     timed_interaction.0.double_clicked = true;
                 }
             }
+
+            *last_click = None;
         } else {
             for mut timed_interaction in &mut timed_interactions {
                 if *timed_interaction.1 == Interaction::Pressed {
                     timed_interaction.0.clicked = true;
                 }
             }
-        }
 
-        *last_click = Some(now);
+            *last_click = Some(now);
+        }
     } else if let Some(last) = *last_click && last.elapsed() > DOUBLE_CLICK_TIME {
         if mouse.pressed(MouseButton::Left) {
             for mut timed_interaction in &mut timed_interactions {

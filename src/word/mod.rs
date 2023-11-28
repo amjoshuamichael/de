@@ -4,7 +4,10 @@ pub mod ui;
 pub mod movement;
 pub mod spawn;
 
+use bevy::utils::HashSet;
 pub use movement::*;
+
+use self::ui::VocabChange;
 
 pub struct PlayerPlugin;
 
@@ -13,17 +16,23 @@ impl Plugin for PlayerPlugin {
         app
             .add_systems(Startup, ui::setup_word_ui)
             .add_event::<SentenceStructureChanged>()
+            .add_event::<VocabChange>()
             .add_systems(Update, (
-                ui::update_sentence_ui,
-                ui::update_word_ui,
-                ui::do_unsnap,
-                ui::do_drag.after(ui::do_unsnap),
-                ui::do_snap.after(ui::do_drag),
+                (
+                    ui::update_vocabulary,
+                    ui::update_sentence_ui,
+                    ui::update_word_ui,
+                ).chain(),
+                (
+                    ui::do_unsnap,
+                    ui::do_drag,
+                    ui::do_snap,
+                ).chain(),
             ))
             .add_systems(Update, (
                 spawn::remake_player_character,
-                spawn::deactivate_inactive_sentence_structures.after(spawn::remake_player_character),
-            ))
+                spawn::deactivate_inactive_sentence_structures,
+            ).chain())
             .add_systems(Startup, movement::spawn_player)
             .add_systems(Update, movement::do_movement);
     }
@@ -34,15 +43,23 @@ pub struct WordControl {
     //wide: bool,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Component, Default)]
+pub struct Vocabulary {
+    words: HashSet<WordID>,
+}
+
+#[derive(Default, Copy, Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub enum WordID {
+    #[default]
     Baby,
     Wide,
     Tall,
 }
 
+#[derive(Default)]
 pub struct WordData {
-    pub basic: String,
+    pub basic: &'static str,
+    pub tag_handle: Handle<Image>,
     // TODO: this would store more information about the word, like tenses, etc..
 }
 
