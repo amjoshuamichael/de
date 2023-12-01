@@ -3,7 +3,48 @@ use bevy_rapier2d::prelude::Collider;
 
 use crate::word::{Words, ui::VocabChange};
 
-use super::WordTag;
+use super::WorldObject;
+
+#[derive(Default, Component)]
+pub struct WordTag {
+    pub(super) word_id: WordID,
+}
+
+#[derive(Default, Bundle)]
+pub struct WordTagBundle {
+    word_tag: WordTag,
+    sprite: SpriteBundle,
+    collider: Collider,
+    colliding: CollidingEntities,
+    rigidbody: RigidBody,
+    events: ActiveEvents,
+    sensor: Sensor,
+    name: Name,
+}
+
+#[derive(Debug, TypePath, Serialize, Deserialize)]
+pub struct WordTagInWorld {
+    pub(super) word_id: WordID,
+    pub(super) transform: Transform,
+}
+
+impl WorldObject for WordTag {
+    type Bundle = WordTagBundle;
+    type InWorld = WordTagInWorld;
+
+    fn bundle(in_world: &WordTagInWorld) -> WordTagBundle {
+        WordTagBundle {
+            word_tag: WordTag { word_id: in_world.word_id },
+                sprite: SpriteBundle {
+                    transform: in_world.transform,
+                    ..default()
+                },
+                rigidbody: RigidBody::Fixed,
+                events: ActiveEvents::all(),
+            ..default()
+        }
+    }
+}
 
 pub fn init_word_tags(
     mut new_tags: Query<
@@ -24,8 +65,6 @@ pub fn word_tags_update(
     word_tags: Query<(&WordTag, &CollidingEntities, Entity)>,
     parents: Query<&Parent>,
     players: Query<Entity, With<Player>>,
-    collents: Query<&CollidingEntities>,
-    mut collisions: EventReader<CollisionEvent>,
     mut vocab_changes: EventWriter<VocabChange>,
     mut commands: Commands,
 ) {

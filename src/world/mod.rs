@@ -8,6 +8,10 @@ use self::editor::WorldEditorState;
 mod editor;
 pub mod dropdown;
 mod word_tag;
+mod lock_zone;
+
+pub use word_tag::*;
+pub use lock_zone::*;
 
 pub struct WorldPlugin;
 
@@ -23,7 +27,6 @@ impl Plugin for WorldPlugin {
             .add_systems(Update, (
                 editor::set_mouse_world_coords,
                 editor::open_world_editor,
-                editor::update_positions_for_world,
                 editor::edit_world
                     .after(editor::setup_world_editor_gui)
                     .run_if(in_state(WorldEditorState::On)),
@@ -31,6 +34,7 @@ impl Plugin for WorldPlugin {
             .add_systems(Update, (
                 word_tag::init_word_tags,
                 word_tag::word_tags_update,
+                lock_zone::lock_zone_update,
             ))
             .add_systems(OnEnter(WorldEditorState::On), editor::setup_world_editor_gui)
             .add_systems(OnExit(WorldEditorState::On), editor::teardown_world_editor_gui)
@@ -50,11 +54,6 @@ pub struct DeWorld {
     word_tags: Vec<WordTagInWorld>,
 }
 
-#[derive(Debug, Asset, TypePath, Serialize, Deserialize)]
-struct WordTagInWorld {
-    word_id: WordID,
-    transform: Transform,
-}
 
 impl Default for DeWorld {
     fn default() -> Self {
@@ -103,23 +102,7 @@ pub enum TileIndex {
 #[derive(Component)]
 pub struct LoadedWorld {
     handle: Handle<DeWorld>,
-}
-
-#[derive(Default, Component)]
-pub struct WordTag {
-    word_id: WordID,
-}
-
-#[derive(Default, Bundle)]
-pub struct WordTagBundle {
-    word_tag: WordTag,
-    sprite: SpriteBundle,
-    collider: Collider,
-    colliding: CollidingEntities,
-    rigidbody: RigidBody,
-    events: ActiveEvents,
-    sensor: Sensor,
-    name: Name,
+    tiles: Vec<Vec<TileIndex>>,
 }
 
 fn setup_tilemap(
@@ -142,7 +125,7 @@ fn setup_tilemap(
 
     commands.spawn((
         tilemap_bundle, 
-        LoadedWorld { handle: world },
+        LoadedWorld { handle: world, tiles: default() },
         Name::new("World"),
     ));
 }
@@ -151,7 +134,7 @@ fn setup_tilemap(
 #[world_query(mutable)]
 pub struct TileMapQuery {
     tilemap: &'static mut TileMap,
-    asset: &'static mut LoadedWorld,
+    loaded_world: &'static mut LoadedWorld,
     entity: Entity,
 }
 
@@ -169,18 +152,18 @@ fn spawn_world_on_load(
 
         let mut tilemap = tilemaps
             .iter_mut()
-            .find(|tilemap| tilemap.asset.handle.id() == id)
+            .find(|tilemap| tilemap.loaded_world.handle.id() == id)
             .unwrap();
 
-        let Some(state) = asset_server.get_load_state(tilemap.asset.handle.id()) 
+        let Some(state) = asset_server.get_load_state(tilemap.loaded_world.handle.id()) 
             else { continue };
 
         // in debug builds, create a new world file if one doesn't load.
         if state == LoadState::Failed || state == LoadState::Loaded {
-            let world_asset_id = tilemap.asset.handle.id(); 
+            let world_asset_id = tilemap.loaded_world.handle.id(); 
 
             #[cfg(debug_assertions)]
-            if state == LoadState::Failed && world_assets.get(tilemap.asset.handle.id()).is_none() {
+            if state == LoadState::Failed && world_assets.get(world_asset_id).is_none() {
                 world_assets.insert(world_asset_id, DeWorld::default());
             }
 
@@ -201,13 +184,15 @@ fn load_world(
     tilemap.tilemap.clear();
     commands.entity(tilemap.entity).despawn_descendants();
 
+    tilemap.loaded_world.tiles = world.tiles.clone();
+
     for x in 0..(WORLD_SIZE.x as usize) {
         for y in 0..(WORLD_SIZE.y as usize) {
             let tile = world.tiles[y][x];
             let position = IVec3::new(x as i32, y as i32, 0);
 
             if tile == TileIndex::Air {  
-                //tilemap.set_tile(position, None);
+                // tile is already none, we don't have to set it
             } else {
                 tilemap.tilemap.set_tile(position, Some(Tile {
                     sprite_index: tile as u32,
@@ -223,16 +208,7 @@ fn load_world(
     }
 
     for word_tag in &world.word_tags {
-        commands.spawn(WordTagBundle {
-            word_tag: WordTag { word_id: word_tag.word_id },
-            sprite: SpriteBundle {
-                transform: word_tag.transform,
-                ..default()
-            },
-            rigidbody: RigidBody::Fixed,
-            events: ActiveEvents::all(),
-            ..default()
-        }).set_parent(tilemap.entity);
+        commands.spawn(WordTag::bundle(word_tag)).set_parent(tilemap.entity);
     }
 }
 
@@ -299,21 +275,43 @@ fn save_world(
     world_assets: Res<Assets<DeWorld>>,
     asset_server: Res<AssetServer>,
     keyboard: Res<Input<KeyCode>>,
+    worlds: Query<(&LoadedWorld, Entity)>,
+    children_query: Query<&Children>,
+    word_tags: Query<(&WordTag, &Transform)>,
 ) {
     use std::path::*;
     use std::fs::*;
 
-    if keyboard.pressed(CONTROL_KEY) && keyboard.just_pressed(KeyCode::S) {
-        for (world_asset_id, world) in world_assets.iter() {
-            let world_path = asset_server.get_path(world_asset_id).unwrap();
-            let file_path = Path::new("./assets").join(world_path.path());
-            
-            info!("saving world asset {file_path:?}");
+    if !(keyboard.pressed(CONTROL_KEY) && keyboard.just_pressed(KeyCode::S)) { return }
 
-            let config = PrettyConfig::new();
-            let serialized_world = ron::ser::to_string_pretty(world, config)
-                .expect("unable to serialize world");
-            write(file_path, &*serialized_world).expect("unable to write {file_path:?}");
+    for world in &worlds {
+        let mut world_to_save = DeWorld::default();
+        world_to_save.tiles = world.0.tiles.clone();
+
+        for child in children_query.iter_descendants(world.1) {
+            if let Ok(word_tag) = word_tags.get(child) {
+                world_to_save.word_tags.push(WordTagInWorld {
+                    word_id: word_tag.0.word_id,
+                    transform: *word_tag.1,
+                });
+            }
         }
+
+        let world_path = asset_server.get_path(world.0.handle.id()).unwrap();
+        let file_path = Path::new("./assets").join(world_path.path());
+
+        info!("saving world asset {file_path:?}");
+
+        let config = PrettyConfig::new();
+        let serialized_world = ron::ser::to_string_pretty(&world_to_save, config)
+            .expect("unable to serialize world");
+        write(file_path, &*serialized_world).expect("unable to write {file_path:?}");
     }
+}
+
+pub trait WorldObject {
+    type Bundle: Bundle;
+    type InWorld;
+
+    fn bundle(in_world: &Self::InWorld) -> Self::Bundle;
 }

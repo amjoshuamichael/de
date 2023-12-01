@@ -1,3 +1,5 @@
+use bevy::ecs::system::EntityCommands;
+
 use crate::prelude::*;
 use super::*;
 
@@ -20,81 +22,99 @@ pub struct WordObjectBundle {
 pub fn remake_player_character(
     mut structure_change_evt: EventReader<SentenceStructureChanged>,
     mut sentences: Query<(&mut SentenceStructure, Entity)>,
+    mut all_sprites: Query<&mut Sprite>,
     mut commands: Commands,
     assets: Res<MiscAssets>,
 ) {
     for change in structure_change_evt.read() {
         let mut sentence = sentences.get_mut(change.on).unwrap();
-        commands.entity(sentence.1).despawn_descendants();
         
-        let spawn_result = 
-            spawn_with_noun(sentence.0.root, &sentence.0, &mut commands, &*assets, sentence.1);
-
-        if spawn_result.is_ok() {
-            sentence.0.active = true;
+        match spawn_with_noun(sentence.0.root, &sentence.0, &*assets, sentence.1) {
+            Ok(commmand_closure) => {
+                sentence.0.valid = true;
+                commands.entity(sentence.1).despawn_descendants();
+                commmand_closure(&mut commands);
+                all_sprites.for_each_mut(|mut sprite| sprite.color = Color::WHITE);
+            },
+            Err(_) => {
+                all_sprites
+                    .for_each_mut(|mut sprite| sprite.color = Color::GRAY.with_a(0.2));
+                sentence.0.valid = false;
+            }
         }
     }
 }
 
+#[derive(Component)]
+pub struct WideMark;
+
+#[derive(Component)]
+pub struct TallMark;
+
 fn spawn_with_noun(
     word: PhraseID,
     sentence: &SentenceStructure,
-    commands: &mut Commands,
     assets: &MiscAssets,
     parent: Entity,
-) -> Result<(), SentenceParseError> {
+) -> Result<Box<dyn FnOnce(&mut Commands)>, SentenceParseError> {
     match &sentence.sentence[sentence.root] {
         PhraseData { word: None, .. } => return Err(SentenceParseError::Other),
         PhraseData { word: Some(word), kind: PhraseKind::Noun { adjective }} => {
             let mut bundle = WordObjectBundle::default();
 
-            modify_with_adjective(*adjective, &sentence, &mut bundle, &*assets)?;
+            let modifier = modify_with_adjective(*adjective, &sentence, &*assets)?;
 
             match word {
                 WordID::Baby => {
                     bundle.texture = assets.square_pale.clone();
                     let collider = (Collider::cuboid(8.0, 8.0), CollidingEntities::default());
-                    commands.spawn((bundle, collider, Name::new("Baby"))).set_parent(parent);
+                    Ok(Box::new(move |commands| {
+                        let mut new_entity = commands
+                            .spawn((bundle, collider, Name::new("Baby")));
+
+                        new_entity.set_parent(parent);
+
+                        modifier(&mut new_entity);
+                    }))
                 },
                 _ => return Err(SentenceParseError::Other),
             }
         }
         _ => return Err(SentenceParseError::Other),
     }
-
-    Ok(())
 }
 
 fn modify_with_adjective(
     word: PhraseID,
     sentence: &SentenceStructure,
-    bundle: &mut WordObjectBundle,
-    assets: &MiscAssets,
-) -> Result<(), SentenceParseError> {
+    _assets: &MiscAssets,
+) -> Result<Box<dyn FnOnce(&mut EntityCommands)>, SentenceParseError> {
     match &sentence.sentence[word] {
-        PhraseData { word: None, .. } => {},
+        PhraseData { word: None, .. } => { Ok(Box::new(|_|{})) },
         PhraseData { word: Some(word), kind: PhraseKind::Adjective } => {
             match word {
                 WordID::Wide => 
-                    { bundle.transform.scale.x = 4.0; },
+                    { Ok(Box::new(|entity| { entity.insert(WideMark); })) },
                 WordID::Tall => 
-                    { bundle.transform.scale.y = 4.0; },
+                    { Ok(Box::new(|entity| { entity.insert(TallMark); })) },
                 _ => todo!(),
             }
         }
         _ => return Err(SentenceParseError::Other),
     }
-
-    Ok(())
 }
 
-
 pub fn deactivate_inactive_sentence_structures(
-    mut sentences: Query<(&mut SentenceStructure, Option<&mut Velocity>)>,
+    mut sentences: Query<(&SentenceStructure, Entity), Changed<SentenceStructure>>,
+    mut commands: Commands,
 ) {
     for sentence in &mut sentences {
-        if !sentence.0.active {
-            if let Some(mut vel) = sentence.1 { *vel = Velocity::default() }
+        let mut sentence_object = commands.entity(sentence.1);
+
+        if sentence.0.valid {
+            sentence_object.remove::<RigidBodyDisabled>();
+        } else {
+            sentence_object.insert(RigidBodyDisabled::default());
         }
     }
 }

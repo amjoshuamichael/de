@@ -10205,7 +10205,7 @@
         (
             word_id: Wide,
             transform: (
-                translation: (733.0847, 770.0112, 0.0),
+                translation: (737.9724, 777.01587, 0.0),
                 rotation: (0.0, 0.0, 0.0, 1.0),
                 scale: (1.0, 1.0, 1.0),
             ),
@@ -10213,7 +10213,7 @@
         (
             word_id: Tall,
             transform: (
-                translation: (945.29486, 678.75824, 0.0),
+                translation: (973.29486, 684.75824, 0.0),
                 rotation: (0.0, 0.0, 0.0, 1.0),
                 scale: (1.0, 1.0, 1.0),
             ),

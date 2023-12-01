@@ -2,7 +2,7 @@ use crate::{prelude::*, word::WordID};
 use bevy::window::*;
 use bevy_simple_tilemap::*;
 
-use super::{LoadedWorld, DeWorld, TileIndex, WORLD_SIZE, dropdown::{DropdownBundle, Dropdown}, WordTagInWorld, WordTag};
+use super::{LoadedWorld, DeWorld, TileIndex, WORLD_SIZE, dropdown::{DropdownBundle, Dropdown}, WordTagInWorld, WordTag, WordTagBundle, WorldObject};
 
 #[derive(Default, States, Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum WorldEditorState {
@@ -102,84 +102,58 @@ pub fn teardown_world_editor_gui(
 }
 
 pub fn edit_world(
-    mut tilemaps: Query<(&Transform, &mut LoadedWorld)>,
+    mut tilemaps: Query<(&Transform, &mut LoadedWorld, &mut TileMap, Entity)>,
     placement_dropdown: Query<&Dropdown, With<PlacementDropdown>>,
     mouse_button: Res<Input<MouseButton>>,
-    mut world_assets: ResMut<Assets<DeWorld>>,
     mouse_world_coords: Res<MouseWorldCoords>,
     mut gizmos: Gizmos,
-    mut asset_events: EventWriter<AssetEvent<DeWorld>>,
+    mut commands: Commands,
 ) {
     let Some(mouse_position) = mouse_world_coords.position else { return };
     let placement_dropdown = placement_dropdown.single();
 
-    for tilemap in &mut tilemaps {
+    for mut tilemap in &mut tilemaps {
         let pos_on_map = mouse_position - tilemap.0.translation.xy();
         gizmos.circle_2d(pos_on_map, 10.0, Color::GREEN);
 
         if mouse_button.get_pressed().is_empty() { return };
 
-        let world = world_assets.get_mut(tilemap.1.handle.id()).unwrap();
+        let tiles = &mut tilemap.1.tiles;
 
         match placement_dropdown.chosen {
             0 => { // world
                 let tile_pos = (pos_on_map + 8.0) / 16.0;
                 let tile_pos = (tile_pos.x as usize, tile_pos.y as usize);
 
-                if !(0..world.tiles.len()).contains(&tile_pos.1) ||
-                    !(0..world.tiles[0].len()).contains(&tile_pos.0) {
+                if !(0..tiles.len()).contains(&tile_pos.1) ||
+                    !(0..tiles[tile_pos.1].len()).contains(&tile_pos.0) {
                     continue;
                 }
                 
-                world.tiles[tile_pos.1][tile_pos.0] = 
-                    if mouse_button.pressed(MouseButton::Left) {
+                let tile = if mouse_button.pressed(MouseButton::Left) {
                         TileIndex::Ground
                     } else {
                         TileIndex::Air
                     };
+
+                tiles[tile_pos.1][tile_pos.0] = tile;
+
+                let tile_opt = if tile == TileIndex::Air { 
+                        None 
+                    } else { 
+                        Some(Tile { sprite_index: tile as u32, ..default() })
+                    };
+                tilemap.2.set_tile(IVec3::new(tile_pos.0 as i32, tile_pos.1 as i32, 0), tile_opt);
             },
             1 => {
                 if !mouse_button.just_pressed(MouseButton::Left) { return }
 
-                world.word_tags.push(WordTagInWorld {
+                commands.spawn(WordTag::bundle(&WordTagInWorld {
                     word_id: WordID::Baby,
-                    transform: Transform {
-                        translation: pos_on_map.extend(0.0),
-                        ..default()
-                    },
-                });
+                    transform: Transform::from_translation(pos_on_map.extend(0.)),
+                })).set_parent(tilemap.3);
             }
             _ => unreachable!(),
         }
-        
-        asset_events.send(AssetEvent::Modified {
-            id: tilemap.1.handle.id(),
-        });
-    }
-}
-
-pub fn update_positions_for_world(
-    changed_word_tags: Query<(), (Changed<Transform>, With<WordTag>)>,
-    all_word_tags: Query<(&WordTag, Ref<Transform>, &Parent)>,
-    tilemaps: Query<&LoadedWorld>,
-    mut world_assets: ResMut<Assets<DeWorld>>,
-) {
-    if !changed_word_tags.is_empty() {
-        if all_word_tags.iter().any(|tag| tag.1.is_added()) { 
-            // tags are added, not changed after adding
-            return;
-        }
-
-        let world = **all_word_tags.iter().next().unwrap().2;
-        let tilemap = tilemaps.get(world).unwrap();
-        let world_asset = world_assets.get_mut(tilemap.handle.clone()).unwrap();
-
-        world_asset.word_tags = all_word_tags
-            .iter()
-            .map(|(tag, transform, _)| WordTagInWorld {
-                word_id: tag.word_id,
-                transform: *transform,
-            })
-            .collect();
     }
 }

@@ -35,14 +35,13 @@ pub fn spawn_player(
             SentenceStructure {
                 sentence: map,
                 root,
-                active: false,
+                valid: false,
             }
         },
         Vocabulary::default(),
         Name::new("Player"),
     )).id();
 
-    dbg!(&player);
     vocab_changes.send(VocabChange::Added {
         word: WordID::Baby,
         to: player,
@@ -65,7 +64,8 @@ pub fn do_movement(
     const MOVE_X_SPEED: f32 = 64.0;
     const MOVE_X_ACC: f32 = 0.1;
     let mut player = player.single_mut();
-    //if player.children.is_empty() { return }
+
+    if !player.word_object.valid { return }
 
     let goal_speed = if input.pressed(KeyCode::D) {
         MOVE_X_SPEED

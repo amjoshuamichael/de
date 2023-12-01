@@ -2,6 +2,7 @@
 // in general, try to run cargo fix --allow-dirty before each commit.
 #![allow(unused_imports)]
 
+#![feature(let_chains)]
 #![feature(exact_size_is_empty)]
 
 // put a use crate::prelude::* at the top of every file

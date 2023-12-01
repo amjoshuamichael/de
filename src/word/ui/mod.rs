@@ -1,30 +1,47 @@
 use crate::prelude::*;
+
 use bevy::ecs::query::WorldQuery;
 use bevy::input::mouse::MouseMotion;
 use bevy::ui::Interaction;
 
 use crate::load_assets::MiscAssets;
 
-use super::{PhraseID, SentenceStructure, PhraseData, SentenceStructureChanged, WordID, Words, PhraseKind, Vocabulary};
+use super::*;
 
-#[derive(Component)]
+mod drag_and_drop;
+pub use drag_and_drop::*;
+
+#[derive(Default, Component)]
 pub struct DraggableWord {
-    is_being_dragged: bool,
-    is_snapped: bool,
     word_id: WordID,
 }
 
 #[derive(Component, Default)]
-pub struct DraggableWordParent;
-
-#[derive(Component, Default)]
 pub struct WordSnapParent;
 
-#[derive(Component)]
-pub struct WordSnapPoint {
-    for_phrase: PhraseID,
-    sentence: Entity,
+#[derive(Debug, Component)]
+pub struct SentenceSection {
+    pub for_phrase: PhraseID,
+    pub sentence_entity: Entity,
+    pub locked: bool,
 }
+
+impl SentenceSection {
+    fn new(for_phrase: PhraseID, sentence_entity: Entity) -> Self {
+        Self { for_phrase, sentence_entity, locked: false }
+    }
+}
+
+#[derive(Component)]
+pub struct Inventory {
+    
+}
+
+#[derive(Component)]
+pub struct WordDock;
+
+#[derive(Component)]
+pub struct DraggingParent;
 
 const TEXT_OBJECTS_Z_INDEX: ZIndex = ZIndex::Global(30);
 
@@ -36,7 +53,7 @@ pub struct DraggableWordBundle {
 }
 
 impl DraggableWordBundle {
-    fn for_word(word_id: WordID, assets: &MiscAssets) -> Self {
+    fn for_word_snapped(word_id: WordID, assets: &MiscAssets) -> Self {
         DraggableWordBundle {
             text: TextBundle {
                 text: Text::from_section(
@@ -48,9 +65,7 @@ impl DraggableWordBundle {
                     }
                 ),
                 style: Style {
-                    position_type: PositionType::Absolute,
-                    top: Val::Px(0.0),
-                    left: Val::Px(0.0),
+                    position_type: PositionType::Relative,
                     padding: UiRect::all(Val::Px(10.0)),
                     ..default()
                 },
@@ -59,8 +74,6 @@ impl DraggableWordBundle {
                 ..default()
             },
             draggable: DraggableWord {
-                is_being_dragged: false,
-                is_snapped: false,
                 word_id,
             },
             interaction: Interaction::default(),
@@ -72,18 +85,40 @@ pub fn setup_word_ui(
     mut commands: Commands,
     assets: Res<MiscAssets>,
 ) {
-    // Draggable word parent is the parent of all of the words that aren't currently 
-    // snapped. When words get snapped, they are childfren of their snap point.
-    let _draggable_word_parent = commands.spawn((
+    let _inventory = commands.spawn((
+        Inventory {},
         NodeBundle {
             style: Style {
-                width: Val::Percent(100.0),
+                position_type: PositionType::Absolute,
+                display: Display::Grid,
+                grid_template_rows: {
+                    let mut basic_rows = vec![GridTrack::auto(); 6];
+                    basic_rows.push(GridTrack::flex(1.0));
+                    basic_rows
+                },
+                width: Val::Percent(25.),
+                height: Val::Percent(100.),
+                right: Val::Px(0.),
+                ..default()
+            },
+            background_color: Color::YELLOW_GREEN.with_a(0.2).into(),
+            ..default()
+        },
+        WordDock,
+    )).id();
+
+    commands.spawn((
+        DraggingParent,
+        NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.),
+                height: Val::Percent(100.),
                 ..default()
             },
             ..default()
-        },
-        DraggableWordParent,
-    )).id();
+        }
+    ));
 
     let word_snap_parent = commands.spawn((
         WordSnapParent,
@@ -157,20 +192,21 @@ pub enum VocabChange {
 
 pub fn update_vocabulary(
     mut vocabularies: Query<&mut Vocabulary>,
-    draggable_parent: Query<Entity, With<DraggableWordParent>>,
+    inventory: Query<Entity, With<Inventory>>,
     mut vocab_changes: EventReader<VocabChange>,
     mut commands: Commands,
     assets: Res<MiscAssets>,
 ) {
-    let draggable_parent = draggable_parent.single();
+    let inventory = inventory.single();
+
     for vocab_change in vocab_changes.read() {
         match vocab_change {
             VocabChange::Added { word, to } => {
                 let mut vocabulary = vocabularies.get_mut(*to).unwrap();
                 vocabulary.words.insert(*word);
                 commands
-                    .spawn(DraggableWordBundle::for_word(*word, &*assets))
-                    .set_parent(draggable_parent);
+                    .spawn(DraggableWordBundle::for_word_snapped(*word, &*assets))
+                    .set_parent(inventory);
             },
         }
     }
@@ -211,13 +247,11 @@ pub fn spawn_snap_for(
                     },
                     ..default()
                 },
-                WordSnapPoint {
-                    for_phrase: phrase,
-                    sentence: sentence.0,
-                },
+                SentenceSection::new(phrase, sentence.0),
+                WordDock,
             )).set_parent(noun_parent);
         },
-        PhraseData { word, kind: PhraseKind::Adjective } => {
+        PhraseData { kind: PhraseKind::Adjective, .. } => {
             commands.spawn((
                 NodeBundle {
                     background_color: BackgroundColor::from(Color::YELLOW.with_a(0.5)),
@@ -234,121 +268,34 @@ pub fn spawn_snap_for(
                     },
                     ..default()
                 },
-                WordSnapPoint {
-                    for_phrase: phrase,
-                    sentence: sentence.0,
-                },
+                SentenceSection::new(phrase, sentence.0),
+                WordDock,
                 Name::new("Word Snap Point"),
             )).set_parent(word_snap_parent);
         },
     }
 }
 
-#[derive(WorldQuery)]
-#[world_query(mutable)]
-pub struct QDraggableWord {
-    style: &'static mut Style,
-    node: &'static Node,
-    interaction: &'static Interaction,
-    transform: &'static Transform,
-    draggable: &'static mut DraggableWord,
-    global_transform: &'static GlobalTransform,
-    entity: Entity,
-    parent: &'static Parent,
-}
-
-pub fn do_drag(
-    mut draggables: Query<QDraggableWord>,
-    mut mouse_motion: EventReader<MouseMotion>,
-) {
-    for mut draggable in &mut draggables {
-        draggable.draggable.is_being_dragged = 
-            *draggable.interaction == Interaction::Pressed;
-
-        if draggable.draggable.is_being_dragged {
-            for motion in mouse_motion.read() {
-                let Val::Px(left) = &mut draggable.style.left else { panic!() };
-                *left += motion.delta.x;
-                let Val::Px(top) = &mut draggable.style.top else { panic!() };
-                *top += motion.delta.y;
-            }
-        }
-    }
-}
-
-pub fn do_unsnap(
-    mut draggables: Query<QDraggableWord>,
-    snap_points: Query<&WordSnapPoint>,
-    mut sentences: Query<&mut SentenceStructure>,
-    draggable_parent: Query<Entity, With<DraggableWordParent>>,
-    mut commands: Commands,
+pub fn sentence_section_docks(
+    In(changed_dock): In<Entity>,
+    docks: Query<(Option<&Children>, &SentenceSection)>,
+    words: Query<&DraggableWord>,
+    mut sentences: Query<(Entity, &mut SentenceStructure)>,
     mut change_events: EventWriter<SentenceStructureChanged>,
 ) {
-    let draggable_parent = draggable_parent.single();
+    let Ok(dock) = docks.get(changed_dock) else { return };
 
-    for mut draggable in &mut draggables {
-        if *draggable.interaction == Interaction::Pressed { 
-            if draggable.draggable.is_snapped {
-                let draggable_center = 
-                    draggable.node.logical_rect(draggable.global_transform);
+    let mut sentence = sentences.get_mut(dock.1.sentence_entity).unwrap();
 
-                draggable.style.left = Val::Px(draggable_center.min.x);
-                draggable.style.top = Val::Px(draggable_center.min.y);
-                draggable.style.position_type = PositionType::Absolute;
-                draggable.draggable.is_snapped = false;
+    sentence.1.sentence[dock.1.for_phrase].word = 
+        if let Some(docked) = dock.0 {
+            let word = words.get(docked[0]).unwrap();
+            Some(word.word_id)
+        } else {
+            None
+        };
 
-                let snap_point = snap_points.get(**draggable.parent).unwrap();
-                let mut sentence = sentences.get_mut(snap_point.sentence).unwrap();
-                sentence.sentence[snap_point.for_phrase].word = None;
-
-                change_events.send(SentenceStructureChanged {
-                    on: snap_point.sentence,
-                });
-
-                commands.entity(draggable.entity).set_parent(draggable_parent);
-            }
-        }
-    }
-}
-
-pub fn do_snap(
-    mut draggables: Query<QDraggableWord>,
-    snap_points: Query<(&GlobalTransform, Entity, &Node, &WordSnapPoint)>,
-    mut sentences: Query<&mut SentenceStructure>,
-    mut commands: Commands,
-    mut change_events: EventWriter<SentenceStructureChanged>,
-) {
-    for snap_point in &snap_points {
-        for mut draggable in &mut draggables {
-            if !draggable.draggable.is_snapped 
-                && *draggable.interaction != Interaction::Pressed {
-                let draggable_rect = draggable.node.logical_rect(draggable.global_transform);
-
-                // if the width is 0, then the UI component hasn't loaded yet - this can 
-                // cause bugs, so escape and wait for next frame
-                if draggable_rect.width() == 0.0 { return; }
-
-                let is_on_snap_point = draggable_rect
-                    .inset(10.0)
-                    .contains(snap_point.0.translation().xy());
-
-                if is_on_snap_point {
-                    commands.entity(draggable.entity).set_parent(snap_point.1);
-
-                    draggable.style.left = Val::Auto;
-                    draggable.style.top = Val::Auto;
-                    draggable.style.position_type = PositionType::Relative;
-                    draggable.draggable.is_snapped = true;
-
-                    let mut sentence = sentences.get_mut(snap_point.3.sentence).unwrap();
-                    sentence.sentence[snap_point.3.for_phrase].word = 
-                        Some(draggable.draggable.word_id);
-
-                    change_events.send(SentenceStructureChanged {
-                        on: snap_point.3.sentence,
-                    });
-                }
-            }
-        }
-    }
+    change_events.send(SentenceStructureChanged {
+        on: sentence.0,
+    });
 }

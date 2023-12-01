@@ -1,8 +1,12 @@
+// The word module handles everything related to words, spawning them in the world, and
+// applying their effects.
+
 use crate::prelude::*;
 
 pub mod ui;
 pub mod movement;
 pub mod spawn;
+pub mod apply_words;
 
 use bevy::utils::HashSet;
 pub use movement::*;
@@ -33,6 +37,10 @@ impl Plugin for PlayerPlugin {
                 spawn::remake_player_character,
                 spawn::deactivate_inactive_sentence_structures,
             ).chain())
+            .add_systems(FixedUpdate, (
+                apply_words::apply_wide,
+                apply_words::apply_tall,
+            ))
             .add_systems(Startup, movement::spawn_player)
             .add_systems(Update, movement::do_movement);
     }
@@ -56,7 +64,7 @@ pub enum WordID {
     Tall,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct WordData {
     pub basic: &'static str,
     pub tag_handle: Handle<Image>,
@@ -88,7 +96,7 @@ pub enum PhraseKind {
 pub struct SentenceStructure {
     pub sentence: SlotMap<PhraseID, PhraseData>,
     pub root: PhraseID,
-    pub active: bool,
+    pub valid: bool,
 }
 
 #[derive(Event)]
