@@ -15,6 +15,7 @@ pub struct QDraggableWord {
     interaction: &'static Interaction,
     transform: &'static Transform,
     background_color: &'static mut BackgroundColor,
+    border_color: &'static mut BorderColor,
     draggable: &'static mut DraggableWord,
     global_transform: &'static GlobalTransform,
     entity: Entity,
@@ -23,6 +24,16 @@ pub struct QDraggableWord {
 
 #[derive(Component)]
 pub struct Dragging;
+
+#[derive(Event)]
+pub struct SentenceUIChanged {
+    // None if the word was removed
+    pub word: Entity,
+    // The dock UI entity that a word was added or removed from. Includes the inventory 
+    // entity
+    pub for_dock: Entity,
+    pub added: bool,
+}
 
 impl<'a> QDraggableWordItem<'a> {
     fn set_pos_absolute(&mut self) {
@@ -40,10 +51,22 @@ impl<'a> QDraggableWordItem<'a> {
 }
 
 pub fn do_drag(
-    mut draggables: Query<QDraggableWord, With<Dragging>>,
+    mut dragging: Query<QDraggableWord, With<Dragging>>,
+    not_dragging: Query<QDraggableWord, Without<Dragging>>,
     mut mouse_motion: EventReader<MouseMotion>,
+    mut windows: Query<&mut Window>,
 ) {
-    for mut draggable in &mut draggables {
+    let mut window = windows.single_mut();
+
+    if !dragging.is_empty() {
+        window.cursor.icon = CursorIcon::Grabbing;
+    } else if not_dragging.iter().any(|d| *d.interaction == Interaction::Hovered) {
+        window.cursor.icon = CursorIcon::Grab;
+    } else {
+        window.cursor.icon = CursorIcon::Default;
+    }
+
+    for mut draggable in &mut dragging {
         for motion in mouse_motion.read() {
             let Val::Px(left) = &mut draggable.style.left else { return };
             *left += motion.delta.x;
@@ -59,6 +82,7 @@ pub fn do_snap(
     inventory: Query<Entity, With<Inventory>>,
     mouse: Res<Input<MouseButton>>,
     mut commands: Commands,
+    mut ui_changes: EventWriter<SentenceUIChanged>,
 ) {
     if !mouse.just_released(MouseButton::Left) { return };
 
@@ -80,7 +104,11 @@ pub fn do_snap(
             .remove::<Dragging>()
             .set_parent(dock.1);
 
-        command_snap_routines(&mut commands, dock.1);
+        ui_changes.send(SentenceUIChanged { 
+            word: draggable.entity,
+            for_dock: dock.1,
+            added: true,
+        });
     }
 }
 
@@ -88,21 +116,20 @@ pub fn do_unsnap(
     mut draggables: Query<QDraggableWord, (Changed<Interaction>, Without<Dragging>)>,
     drag_parent: Query<Entity, With<DraggingParent>>,
     mut commands: Commands,
+    mut ui_changes: EventWriter<SentenceUIChanged>,
 ) {
     for mut draggable in &mut draggables {
-        if *draggable.interaction == Interaction::Pressed {
+        if *draggable.interaction == Interaction::Pressed && !draggable.draggable.locked {
             draggable.set_pos_absolute();
             commands.entity(draggable.entity)
                 .insert(Dragging)
                 .set_parent(drag_parent.single());
 
-            command_snap_routines(&mut commands, **draggable.parent);
+            ui_changes.send(SentenceUIChanged { 
+                word: draggable.entity,
+                for_dock: **draggable.parent,
+                added: false,
+            });
         }
     }
-}
-
-pub fn command_snap_routines(commands: &mut Commands, dock: Entity) {
-    commands.add(move |world: &mut World| {
-        world.run_system_once((move || dock).pipe(super::sentence_section_docks));
-    });
 }

@@ -9,9 +9,11 @@ mod editor;
 pub mod dropdown;
 mod word_tag;
 mod lock_zone;
+mod player_spawner;
 
 pub use word_tag::*;
 pub use lock_zone::*;
+pub use player_spawner::*;
 
 pub struct WorldPlugin;
 
@@ -35,6 +37,7 @@ impl Plugin for WorldPlugin {
                 word_tag::init_word_tags,
                 word_tag::word_tags_update,
                 lock_zone::lock_zone_update,
+                player_spawner::player_spawner_update,
             ))
             .add_systems(OnEnter(WorldEditorState::On), editor::setup_world_editor_gui)
             .add_systems(OnExit(WorldEditorState::On), editor::teardown_world_editor_gui)
@@ -50,16 +53,18 @@ const WORLD_SIZE: UVec2 = UVec2::splat(100);
 #[derive(Debug, Resource, Asset, TypePath, Serialize, Deserialize)]
 pub struct DeWorld {
     tiles: Vec<Vec<TileIndex>>,
-    #[serde(default)]
-    word_tags: Vec<WordTagInWorld>,
+    #[serde(default)] player_spanwers: Vec<PlayerSpawnerInWorld>,
+    #[serde(default)] word_tags: Vec<WordTagInWorld>,
+    #[serde(default)] lock_zones: Vec<LockZoneInWorld>,
 }
-
 
 impl Default for DeWorld {
     fn default() -> Self {
         Self {
             tiles: vec![vec![TileIndex::Air; WORLD_SIZE.x as usize]; WORLD_SIZE.y as usize],
-            word_tags: Vec::new(),
+            player_spanwers: default(),
+            word_tags: default(),
+            lock_zones: default(),
         }
     }
 }
@@ -210,6 +215,14 @@ fn load_world(
     for word_tag in &world.word_tags {
         commands.spawn(WordTag::bundle(word_tag)).set_parent(tilemap.entity);
     }
+
+    for lock_zone in &world.lock_zones {
+        commands.spawn(LockZone::bundle(&(&lock_zone, assets))).set_parent(tilemap.entity);
+    }
+
+    for spawner in &world.player_spanwers {
+        commands.spawn(PlayerSpawner::bundle(&spawner)).set_parent(tilemap.entity);
+    }
 }
 
 #[derive(Default, Bundle)]
@@ -272,12 +285,13 @@ fn calculate_world_colliders(world: &DeWorld) -> Vec<WorldCollderBundle> {
 }
 
 fn save_world(
-    world_assets: Res<Assets<DeWorld>>,
     asset_server: Res<AssetServer>,
     keyboard: Res<Input<KeyCode>>,
     worlds: Query<(&LoadedWorld, Entity)>,
     children_query: Query<&Children>,
     word_tags: Query<(&WordTag, &Transform)>,
+    lock_zones: Query<&Transform, With<LockZone>>,
+    spawners: Query<&Transform, With<PlayerSpawner>>,
 ) {
     use std::path::*;
     use std::fs::*;
@@ -294,6 +308,14 @@ fn save_world(
                     word_id: word_tag.0.word_id,
                     transform: *word_tag.1,
                 });
+            } else if let Ok(lock_zone) = lock_zones.get(child) {
+                world_to_save.lock_zones.push(LockZoneInWorld {
+                    transform: *lock_zone,
+                });
+            } else if let Ok(spawner) = spawners.get(child) {
+                world_to_save.player_spanwers.push(PlayerSpawnerInWorld {
+                    transform: *spawner,
+                });
             }
         }
 
@@ -309,9 +331,9 @@ fn save_world(
     }
 }
 
-pub trait WorldObject {
+pub trait WorldObject: Component {
     type Bundle: Bundle;
-    type InWorld;
+    type InWorld<'a>;
 
-    fn bundle(in_world: &Self::InWorld) -> Self::Bundle;
+    fn bundle<'a>(in_world: &Self::InWorld<'a>) -> Self::Bundle;
 }

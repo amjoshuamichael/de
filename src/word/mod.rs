@@ -11,7 +11,7 @@ pub mod apply_words;
 use bevy::utils::HashSet;
 pub use movement::*;
 
-use self::ui::VocabChange;
+use self::{ui::*, spawn::SentenceSpawn};
 
 pub struct PlayerPlugin;
 
@@ -19,30 +19,35 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(Startup, ui::setup_word_ui)
+            .add_event::<SentenceUIChanged>()
             .add_event::<SentenceStructureChanged>()
+            .add_event::<SentenceSpawn>()
             .add_event::<VocabChange>()
             .add_systems(Update, (
-                (
-                    ui::update_vocabulary,
-                    ui::update_sentence_ui,
-                    ui::update_word_ui,
-                ).chain(),
                 (
                     ui::do_unsnap,
                     ui::do_drag,
                     ui::do_snap,
+                    ui::sentence_section_docks.run_if(on_event::<SentenceUIChanged>()),
+                    ui::update_sentence_ui,
+                    ui::reorder_sentence_ui,
+                    spawn::remake_player_character,
+                    spawn::disable_physics_for_invalid_sentence_structures,
+                ).chain(),
+                (
+                    ui::update_vocabulary,
+                    ui::words_init,
+                    ui::indicate_sentence_section_locks,
                 ).chain(),
             ))
-            .add_systems(Update, (
-                spawn::remake_player_character,
-                spawn::deactivate_inactive_sentence_structures,
-            ).chain())
             .add_systems(FixedUpdate, (
                 apply_words::apply_wide,
                 apply_words::apply_tall,
             ))
             .add_systems(Startup, movement::spawn_player)
-            .add_systems(Update, movement::do_movement);
+            .add_systems(Update, (
+                movement::do_movement,
+            ));
     }
 }
 
@@ -62,13 +67,21 @@ pub enum WordID {
     Baby,
     Wide,
     Tall,
+    Horse,
+    And,
 }
 
 #[derive(Debug, Default)]
 pub struct WordData {
     pub basic: &'static str,
+    pub filename: &'static str,
     pub tag_handle: Handle<Image>,
-    // TODO: this would store more information about the word, like tenses, etc..
+}
+
+impl WordData {
+    pub fn new(basic: &'static str, filename: &'static str) -> Self {
+        WordData { basic, filename, tag_handle: Handle::default() }
+    }
 }
 
 #[derive(Resource, Default)]
@@ -82,12 +95,22 @@ pub struct PhraseData {
     pub kind: PhraseKind,
 }
 
+impl PhraseData {
+    fn kind(kind: PhraseKind) -> Self {
+        Self { word: None, kind }
+    }
+}
+
 #[derive(Debug)]
 pub enum PhraseKind {
     Noun { 
         adjective: PhraseID,
     },
     Adjective,
+    CombineAdjectives {
+        l: PhraseID,
+        r: PhraseID,
+    },
 }
 
 /// Components that act as the parent of a word collection. For example, the player has a

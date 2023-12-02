@@ -62,13 +62,17 @@ fn main() {
         .enable_inspection::<Transform>()
         .enable_inspection::<Velocity>()
         .insert_resource(Msaa::Off) // disable anti-aliasing, this is a pixel game
+        .insert_resource(ClearColor(Color::ANTIQUE_WHITE))
         .insert_resource::<Words>(Words({
             let mut map = HashMap::new();
-            map.insert(WordID::Baby, WordData { basic: "Baby", ..default() });
-            map.insert(WordID::Wide, WordData { basic: "Wide", ..default() });
-            map.insert(WordID::Tall, WordData { basic: "Tall", ..default() });
+            map.insert(WordID::Baby, WordData::new("Baby", "baby"));
+            map.insert(WordID::Wide, WordData::new("Wide", "wide"));
+            map.insert(WordID::Tall, WordData::new("Tall", "tall"));
+            map.insert(WordID::Horse, WordData::new("Horse", "horse"));
+            map.insert(WordID::And, WordData::new("And", "and"));
             map
         }))
+
         .run();
 }
 

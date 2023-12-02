@@ -20,7 +20,9 @@ pub fn spawn_player(
         },
         RigidBody::default(),
         AdditionalMassProperties::Mass(10.0),
+        ReadMassProperties::default(),
         Velocity::default(),
+        ExternalForce::default(),
         LockedAxes::ROTATION_LOCKED,
         {
             let mut map = SlotMap::<PhraseID, PhraseData>::with_key();
@@ -55,26 +57,28 @@ pub struct PlayerQuery {
     word_object: &'static SentenceStructure,
     transform: &'static mut Transform,
     velocity: &'static mut Velocity,
+    force: &'static mut ExternalForce,
+    mass: &'static ReadMassProperties,
 }
 
 pub fn do_movement(
     input: Res<Input<KeyCode>>,
     mut player: Query<PlayerQuery>,
 ) {
-    const MOVE_X_SPEED: f32 = 64.0;
+    const MAX_X_SPEED: f32 = 32000.0;
     const MOVE_X_ACC: f32 = 0.1;
     let mut player = player.single_mut();
 
     if !player.word_object.valid { return }
 
+    let max_speed = MAX_X_SPEED / player.mass.mass;
     let goal_speed = if input.pressed(KeyCode::D) {
-        MOVE_X_SPEED
+        max_speed
     } else if input.pressed(KeyCode::A) {
-        -MOVE_X_SPEED
+        -max_speed
     } else {
         0.
     };
-
+    
     player.velocity.linvel.x = lerp(player.velocity.linvel.x, goal_speed, MOVE_X_ACC);
 }
-

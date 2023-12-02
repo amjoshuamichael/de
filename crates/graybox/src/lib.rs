@@ -1,5 +1,10 @@
 #![feature(let_chains)]
 
+// TODO:
+// - list entity IDs
+// - allow for types to define their own modifier functions (e.g. "snap"
+// for Transform), and show them in the menu.
+
 use apply::PathKind;
 use bevy::{prelude::*, ecs::component::ComponentId};
 

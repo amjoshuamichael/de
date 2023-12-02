@@ -148,7 +148,7 @@ pub fn sliders_text(
     for mut slider in &mut sliders {
         if let Some(submitted) = slider.1.submitted.take() {
             let new_val: Box<dyn Reflect> = if slider.0.val.is::<f32>() {
-                let Ok(parsed) = dbg!(submitted.parse::<f32>()) else { continue };
+                let Ok(parsed) = submitted.parse::<f32>() else { continue };
                 Box::new(parsed)
             } else if slider.0.val.is::<f64>() {
                 let Ok(parsed) = submitted.parse::<f64>() else { continue };

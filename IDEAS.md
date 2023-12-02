@@ -1,7 +1,5 @@
 # General
-- No-change zones
 - One-change zones
-- Weight of different objects, affects **elastic** & speed
 - Elastic bounce in intro section
 
 # On Level

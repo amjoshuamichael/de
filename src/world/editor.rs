@@ -2,7 +2,7 @@ use crate::{prelude::*, word::WordID};
 use bevy::window::*;
 use bevy_simple_tilemap::*;
 
-use super::{LoadedWorld, DeWorld, TileIndex, WORLD_SIZE, dropdown::{DropdownBundle, Dropdown}, WordTagInWorld, WordTag, WordTagBundle, WorldObject};
+use super::{*, dropdown::{DropdownBundle, Dropdown}};
 
 #[derive(Default, States, Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum WorldEditorState {
@@ -67,9 +67,13 @@ pub fn open_world_editor(
 #[derive(Component, Default)]
 pub struct PlacementDropdown;
 
+const EDITOR_ZOOM: f32 = 2.0;
 pub fn setup_world_editor_gui(
+    mut camera: Query<&mut OrthographicProjection, With<Camera>>,
     mut commands: Commands,
 ) {
+    camera.single_mut().scale *= EDITOR_ZOOM;
+
     let ui_parent = commands.spawn((
         WorldEditorUIParent, 
         NodeBundle {
@@ -85,7 +89,7 @@ pub fn setup_world_editor_gui(
 
     commands.spawn(DropdownBundle {
         dropdown: Dropdown {
-            options: vec!["World", "Word Tags"],
+            options: vec!["World", "Word Tags", "Lock Zones", "Player Spawner"],
             chosen: 0,
         },
         marker: PlacementDropdown,
@@ -94,9 +98,12 @@ pub fn setup_world_editor_gui(
 }
 
 pub fn teardown_world_editor_gui(
+    mut camera: Query<&mut OrthographicProjection, With<Camera>>,
     mut commands: Commands,
     ui_parent: Query<Entity, With<WorldEditorUIParent>>,
 ) {
+    camera.single_mut().scale /= EDITOR_ZOOM;
+
     let ui_parent = ui_parent.single();
     commands.entity(ui_parent).despawn_recursive();
 }
@@ -106,6 +113,7 @@ pub fn edit_world(
     placement_dropdown: Query<&Dropdown, With<PlacementDropdown>>,
     mouse_button: Res<Input<MouseButton>>,
     mouse_world_coords: Res<MouseWorldCoords>,
+    assets: Res<MiscAssets>,
     mut gizmos: Gizmos,
     mut commands: Commands,
 ) {
@@ -150,6 +158,23 @@ pub fn edit_world(
 
                 commands.spawn(WordTag::bundle(&WordTagInWorld {
                     word_id: WordID::Baby,
+                    transform: Transform::from_translation(pos_on_map.extend(0.)),
+                })).set_parent(tilemap.3);
+            },
+            2 => {
+                if !mouse_button.just_pressed(MouseButton::Left) { return }
+
+                commands.spawn(LockZone::bundle(&(
+                    &LockZoneInWorld {
+                        transform: Transform::from_translation(pos_on_map.extend(0.)),
+                    },
+                    &*assets,
+                ))).set_parent(tilemap.3);
+            },
+            3 => {
+                if !mouse_button.just_pressed(MouseButton::Left) { return }
+
+                commands.spawn(PlayerSpawner::bundle(&PlayerSpawnerInWorld {
                     transform: Transform::from_translation(pos_on_map.extend(0.)),
                 })).set_parent(tilemap.3);
             }

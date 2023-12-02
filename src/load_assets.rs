@@ -13,6 +13,8 @@ impl Plugin for AssetPlugin {
 #[derive(Resource, Default)]
 pub struct MiscAssets {
     pub square_pale: Handle<Image>,
+    pub square_yellow: Handle<Image>,
+    pub horse: Handle<Image>,
     pub tileset: Handle<Image>,
     pub font: Handle<Font>,
 }
@@ -24,11 +26,13 @@ fn load_assets(
     mut words: ResMut<Words>,
 ) {
     assets.square_pale = asset_server.load("square_pale.bmp");
+    assets.square_yellow = asset_server.load("square_yellow.bmp");
+    assets.horse = asset_server.load("horse.bmp");
     assets.tileset = asset_server.load("tileset.bmp");
+
     let font = asset_server.load("fonts/tempfont.ttf");
     assets.font = font.clone();
     graybox.font = font.clone();
-
 
     for word_data in words.0.values_mut() {
         let tag_name = format!("{}_tag.bmp", word_data.basic.to_lowercase());

@@ -1,4 +1,4 @@
-use bevy::ecs::system::EntityCommands;
+use bevy::ecs::system::{EntityCommands, RunSystemOnce};
 
 use crate::prelude::*;
 use super::*;
@@ -6,6 +6,11 @@ use super::*;
 enum SentenceParseError {
     /// TODO: actually report errors
     Other,
+}
+
+#[derive(Debug, Component)]
+pub struct WordObject {
+    pub sentence: Entity,
 }
 
 #[derive(Bundle, Clone, Default)]
@@ -19,22 +24,28 @@ pub struct WordObjectBundle {
     pub view_visibility: ViewVisibility,
 }
 
+#[derive(Event)]
+pub struct SentenceSpawn;
+
 pub fn remake_player_character(
     mut structure_change_evt: EventReader<SentenceStructureChanged>,
     mut sentences: Query<(&mut SentenceStructure, Entity)>,
     mut all_sprites: Query<&mut Sprite>,
     mut commands: Commands,
     assets: Res<MiscAssets>,
+    mut spawn_events: EventWriter<SentenceSpawn>,
 ) {
     for change in structure_change_evt.read() {
         let mut sentence = sentences.get_mut(change.on).unwrap();
+        let sentence_ptr = (&*sentence.0, sentence.1);
         
-        match spawn_with_noun(sentence.0.root, &sentence.0, &*assets, sentence.1) {
+        match spawn_with_noun(sentence.0.root, sentence_ptr, &*assets, sentence.1) {
             Ok(commmand_closure) => {
                 sentence.0.valid = true;
                 commands.entity(sentence.1).despawn_descendants();
                 commmand_closure(&mut commands);
                 all_sprites.for_each_mut(|mut sprite| sprite.color = Color::WHITE);
+                spawn_events.send(SentenceSpawn);
             },
             Err(_) => {
                 all_sprites
@@ -53,30 +64,51 @@ pub struct TallMark;
 
 fn spawn_with_noun(
     word: PhraseID,
-    sentence: &SentenceStructure,
+    sentence: (&SentenceStructure, Entity),
     assets: &MiscAssets,
     parent: Entity,
 ) -> Result<Box<dyn FnOnce(&mut Commands)>, SentenceParseError> {
-    match &sentence.sentence[sentence.root] {
+    match &sentence.0.sentence[word] {
         PhraseData { word: None, .. } => return Err(SentenceParseError::Other),
         PhraseData { word: Some(word), kind: PhraseKind::Noun { adjective }} => {
             let mut bundle = WordObjectBundle::default();
+            let word_object = WordObject { sentence: sentence.1, };
 
-            let modifier = modify_with_adjective(*adjective, &sentence, &*assets)?;
+            let modifier = modify_with_adjective(*adjective, sentence, &*assets)?;
 
             match word {
                 WordID::Baby => {
                     bundle.texture = assets.square_pale.clone();
-                    let collider = (Collider::cuboid(8.0, 8.0), CollidingEntities::default());
+                    let collider = (
+                        Collider::cuboid(8.0, 8.0), 
+                        CollidingEntities::default(),
+                        ColliderMassProperties::Density(1.2),
+                    );
                     Ok(Box::new(move |commands| {
                         let mut new_entity = commands
-                            .spawn((bundle, collider, Name::new("Baby")));
+                            .spawn((bundle, collider, word_object, Name::new("Baby")));
 
                         new_entity.set_parent(parent);
 
                         modifier(&mut new_entity);
                     }))
                 },
+                WordID::Horse => {
+                    bundle.texture = assets.horse.clone();
+                    let collider = (
+                        Collider::cuboid(32.0, 8.0), 
+                        CollidingEntities::default(),
+                        ColliderMassProperties::Density(0.5),
+                    );
+                    Ok(Box::new(move |commands| {
+                        let mut new_entity = commands
+                            .spawn((bundle, collider, word_object, Name::new("Horse")));
+
+                        new_entity.set_parent(parent);
+
+                        modifier(&mut new_entity);
+                    }))
+                }
                 _ => return Err(SentenceParseError::Other),
             }
         }
@@ -86,10 +118,10 @@ fn spawn_with_noun(
 
 fn modify_with_adjective(
     word: PhraseID,
-    sentence: &SentenceStructure,
-    _assets: &MiscAssets,
+    sentence: (&SentenceStructure, Entity),
+    assets: &MiscAssets,
 ) -> Result<Box<dyn FnOnce(&mut EntityCommands)>, SentenceParseError> {
-    match &sentence.sentence[word] {
+    match &sentence.0.sentence[word] {
         PhraseData { word: None, .. } => { Ok(Box::new(|_|{})) },
         PhraseData { word: Some(word), kind: PhraseKind::Adjective } => {
             match word {
@@ -97,14 +129,23 @@ fn modify_with_adjective(
                     { Ok(Box::new(|entity| { entity.insert(WideMark); })) },
                 WordID::Tall => 
                     { Ok(Box::new(|entity| { entity.insert(TallMark); })) },
-                _ => todo!(),
+                _ => return Err(SentenceParseError::Other),
             }
+        }
+        PhraseData { word: Some(WordID::And), kind: PhraseKind::CombineAdjectives { l, r } } => {
+            let l_application = modify_with_adjective(*l, sentence, assets)?;
+            let r_application = modify_with_adjective(*r, sentence, assets)?;
+
+            Ok(Box::new(|entity| {
+                l_application(entity);
+                r_application(entity);
+            }))
         }
         _ => return Err(SentenceParseError::Other),
     }
 }
 
-pub fn deactivate_inactive_sentence_structures(
+pub fn disable_physics_for_invalid_sentence_structures(
     mut sentences: Query<(&SentenceStructure, Entity), Changed<SentenceStructure>>,
     mut commands: Commands,
 ) {
@@ -118,4 +159,3 @@ pub fn deactivate_inactive_sentence_structures(
         }
     }
 }
-
