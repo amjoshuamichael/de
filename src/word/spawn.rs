@@ -15,13 +15,15 @@ pub struct WordObject {
 
 #[derive(Bundle, Clone, Default)]
 pub struct WordObjectBundle {
-    pub sprite: Sprite,
-    pub transform: Transform,
-    pub global_transform: GlobalTransform,
-    pub texture: Handle<Image>,
-    pub visibility: Visibility,
-    pub inherited_visibility: InheritedVisibility,
-    pub view_visibility: ViewVisibility,
+    sprite: Sprite,
+    transform: Transform,
+    global_transform: GlobalTransform,
+    texture: Handle<Image>,
+    visibility: Visibility,
+    inherited_visibility: InheritedVisibility,
+    view_visibility: ViewVisibility,
+    impulse: ExternalImpulse,
+    force: ExternalForce,
 }
 
 #[derive(Event)]
@@ -61,6 +63,13 @@ pub struct WideMark;
 
 #[derive(Component)]
 pub struct TallMark;
+
+#[derive(Component)]
+pub struct FlutteringMark {
+    pub direction: FlutteringDirection,
+}
+
+pub enum FlutteringDirection { Up, Down, Left, Right }
 
 fn spawn_with_noun(
     word: PhraseID,
@@ -125,10 +134,14 @@ fn modify_with_adjective(
         PhraseData { word: None, .. } => { Ok(Box::new(|_|{})) },
         PhraseData { word: Some(word), kind: PhraseKind::Adjective } => {
             match word {
-                WordID::Wide => 
-                    { Ok(Box::new(|entity| { entity.insert(WideMark); })) },
-                WordID::Tall => 
-                    { Ok(Box::new(|entity| { entity.insert(TallMark); })) },
+                WordID::Wide => Ok(Box::new(|entity| { entity.insert(WideMark); })),
+                WordID::Tall => Ok(Box::new(|entity| { entity.insert(TallMark); })),
+                WordID::FlutteringUp => Ok(Box::new(|entity| { 
+                    entity.insert(FlutteringMark { direction: FlutteringDirection::Up });
+                })),
+                WordID::FlutteringRight => Ok(Box::new(|entity| { 
+                    entity.insert(FlutteringMark { direction: FlutteringDirection::Right });
+                })),
                 _ => return Err(SentenceParseError::Other),
             }
         }

@@ -23,6 +23,7 @@ pub fn spawn_player(
         ReadMassProperties::default(),
         Velocity::default(),
         ExternalForce::default(),
+        ExternalImpulse::default(),
         LockedAxes::ROTATION_LOCKED,
         {
             let mut map = SlotMap::<PhraseID, PhraseData>::with_key();

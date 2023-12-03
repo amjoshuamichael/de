@@ -8,7 +8,7 @@
 // put a use crate::prelude::* at the top of every file
 pub mod prelude {
     #![allow(ambiguous_glob_reexports)]
-    pub use bevy::{prelude::*, utils::HashMap, ecs::query::WorldQuery};
+    pub use bevy::{prelude::*, utils::{HashMap, HashSet}, ecs::query::WorldQuery};
     pub use bevy_rapier2d::prelude::*;
     pub use slotmap::*;
     pub use serde::*;
@@ -30,10 +30,12 @@ use prelude::*;
 mod word;
 mod world;
 mod load_assets;
+mod helpers;
 
 use word::*;
 use load_assets::*;
 use world::*;
+pub use helpers::*;
 
 fn main() {
     App::new()
@@ -70,6 +72,8 @@ fn main() {
             map.insert(WordID::Tall, WordData::new("Tall", "tall"));
             map.insert(WordID::Horse, WordData::new("Horse", "horse"));
             map.insert(WordID::And, WordData::new("And", "and"));
+            map.insert(WordID::FlutteringUp, WordData::new("Fluttering", "fluttering_up"));
+            map.insert(WordID::FlutteringRight, WordData::new("Fluttering", "fluttering_right"));
             map
         }))
 

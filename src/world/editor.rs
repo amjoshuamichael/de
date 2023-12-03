@@ -89,7 +89,7 @@ pub fn setup_world_editor_gui(
 
     commands.spawn(DropdownBundle {
         dropdown: Dropdown {
-            options: vec!["World", "Word Tags", "Lock Zones", "Player Spawner"],
+            options: vec!["World", "Word Tags", "Lock Zones", "Player Spawner", "Fan"],
             chosen: 0,
         },
         marker: PlacementDropdown,
@@ -177,6 +177,17 @@ pub fn edit_world(
                 commands.spawn(PlayerSpawner::bundle(&PlayerSpawnerInWorld {
                     transform: Transform::from_translation(pos_on_map.extend(0.)),
                 })).set_parent(tilemap.3);
+            }
+            4 => {
+                if !mouse_button.just_pressed(MouseButton::Left) { return }
+
+                commands.spawn(Fan::bundle(&(
+                    &FanInWorld {
+                        strength: 1.8,
+                        transform: Transform::from_translation(pos_on_map.extend(0.)),
+                    },
+                    &*assets,
+                ))).set_parent(tilemap.3);
             }
             _ => unreachable!(),
         }

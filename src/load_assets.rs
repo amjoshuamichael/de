@@ -14,6 +14,7 @@ impl Plugin for AssetPlugin {
 pub struct MiscAssets {
     pub square_pale: Handle<Image>,
     pub square_yellow: Handle<Image>,
+    pub square_pink: Handle<Image>,
     pub horse: Handle<Image>,
     pub tileset: Handle<Image>,
     pub font: Handle<Font>,
@@ -27,6 +28,7 @@ fn load_assets(
 ) {
     assets.square_pale = asset_server.load("square_pale.bmp");
     assets.square_yellow = asset_server.load("square_yellow.bmp");
+    assets.square_pink = asset_server.load("square_pink.bmp");
     assets.horse = asset_server.load("horse.bmp");
     assets.tileset = asset_server.load("tileset.bmp");
 
@@ -35,7 +37,7 @@ fn load_assets(
     graybox.font = font.clone();
 
     for word_data in words.0.values_mut() {
-        let tag_name = format!("{}_tag.bmp", word_data.basic.to_lowercase());
+        let tag_name = format!("{}_tag.bmp", word_data.filename);
         word_data.tag_handle = asset_server.load(tag_name);
     }
 }

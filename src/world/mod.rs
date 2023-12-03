@@ -10,10 +10,12 @@ pub mod dropdown;
 mod word_tag;
 mod lock_zone;
 mod player_spawner;
+mod fan;
 
 pub use word_tag::*;
 pub use lock_zone::*;
 pub use player_spawner::*;
+pub use fan::*;
 
 pub struct WorldPlugin;
 
@@ -38,6 +40,7 @@ impl Plugin for WorldPlugin {
                 word_tag::word_tags_update,
                 lock_zone::lock_zone_update,
                 player_spawner::player_spawner_update,
+                fan::fans_update.before(crate::word::SentenceModificationRoutine),
             ))
             .add_systems(OnEnter(WorldEditorState::On), editor::setup_world_editor_gui)
             .add_systems(OnExit(WorldEditorState::On), editor::teardown_world_editor_gui)
@@ -56,6 +59,7 @@ pub struct DeWorld {
     #[serde(default)] player_spanwers: Vec<PlayerSpawnerInWorld>,
     #[serde(default)] word_tags: Vec<WordTagInWorld>,
     #[serde(default)] lock_zones: Vec<LockZoneInWorld>,
+    #[serde(default)] fans: Vec<FanInWorld>,
 }
 
 impl Default for DeWorld {
@@ -65,6 +69,7 @@ impl Default for DeWorld {
             player_spanwers: default(),
             word_tags: default(),
             lock_zones: default(),
+            fans: default(),
         }
     }
 }
@@ -215,13 +220,14 @@ fn load_world(
     for word_tag in &world.word_tags {
         commands.spawn(WordTag::bundle(word_tag)).set_parent(tilemap.entity);
     }
-
     for lock_zone in &world.lock_zones {
         commands.spawn(LockZone::bundle(&(&lock_zone, assets))).set_parent(tilemap.entity);
     }
-
     for spawner in &world.player_spanwers {
         commands.spawn(PlayerSpawner::bundle(&spawner)).set_parent(tilemap.entity);
+    }
+    for fan in &world.fans {
+        commands.spawn(Fan::bundle(&(&fan, assets))).set_parent(tilemap.entity);
     }
 }
 
@@ -292,6 +298,7 @@ fn save_world(
     word_tags: Query<(&WordTag, &Transform)>,
     lock_zones: Query<&Transform, With<LockZone>>,
     spawners: Query<&Transform, With<PlayerSpawner>>,
+    fans: Query<(&Fan, &Transform)>,
 ) {
     use std::path::*;
     use std::fs::*;
@@ -316,7 +323,13 @@ fn save_world(
                 world_to_save.player_spanwers.push(PlayerSpawnerInWorld {
                     transform: *spawner,
                 });
+            } else if let Ok(fan) = fans.get(child) {
+                world_to_save.fans.push(FanInWorld {
+                    strength: fan.0.strength,
+                    transform: *fan.1,
+                });
             }
+
         }
 
         let world_path = asset_server.get_path(world.0.handle.id()).unwrap();

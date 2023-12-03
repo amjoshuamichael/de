@@ -101,3 +101,30 @@ pub fn apply_tall(
         wide.2.scale.y = new_scale;
     }
 }
+
+pub fn apply_fluttering(
+    mut flutters: Query<(&FlutteringMark, Entity)>,
+    parents: Query<&Parent>,
+    mut velocities: Query<&mut Velocity>,
+) {
+    for flutter in &mut flutters {
+        for ancestor in parents.iter_ancestors(flutter.1) {
+            if let Ok(mut velocity) = velocities.get_mut(ancestor) {
+                let dir_vector = match flutter.0.direction {
+                    FlutteringDirection::Up => Vec2::new(0., 2.),
+                    FlutteringDirection::Down => todo!(),
+                    FlutteringDirection::Left => todo!(),
+                    FlutteringDirection::Right => Vec2::new(10., 0.),
+                };
+
+                if (velocity.linvel * dir_vector).length() < dir_vector.length() * 100. {
+                    velocity.linvel += dir_vector;
+                } else {
+                    // entity is already moving at a speed higher than 100 times the
+                    // direction of the fan, we don't have to do anything.
+                }
+            }
+            break;
+        }
+    }
+}

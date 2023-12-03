@@ -86,6 +86,7 @@ pub fn do_snap(
 ) {
     if !mouse.just_released(MouseButton::Left) { return };
 
+    let inventory = inventory.single();
     for mut draggable in &mut draggables {
         let draggable_rect = draggable.node
             .logical_rect(draggable.global_transform)
@@ -93,17 +94,21 @@ pub fn do_snap(
 
         let dock = docks
             .iter()
-            .find(|dock| 
+            .find(|dock|
                 draggable_rect.contains(dock.0.translation().xy()) &&
-                dock.2.is_none()
+                (dock.2.map_or_else(|| true, |children| children.is_empty()))
             )
-            .unwrap_or_else(|| docks.get(inventory.single()).unwrap());
+            .unwrap_or_else(|| docks.get(inventory).unwrap());
 
-        draggable.set_pos_relative();
-        commands.entity(draggable.entity)
-            .remove::<Dragging>()
-            .set_parent(dock.1);
-
+        if inventory == dock.1 {
+            draggable.set_pos_relative();
+            commands.entity(draggable.entity)
+                .remove::<Dragging>()
+                .set_parent(dock.1);
+        } else {
+            commands.entity(draggable.entity).despawn_recursive();
+        }
+        
         ui_changes.send(SentenceUIChanged { 
             word: draggable.entity,
             for_dock: dock.1,
@@ -123,6 +128,7 @@ pub fn do_unsnap(
             draggable.set_pos_absolute();
             commands.entity(draggable.entity)
                 .insert(Dragging)
+                .remove_parent()
                 .set_parent(drag_parent.single());
 
             ui_changes.send(SentenceUIChanged { 

@@ -15,6 +15,9 @@ use self::{ui::*, spawn::SentenceSpawn};
 
 pub struct PlayerPlugin;
 
+#[derive(SystemSet, Hash, PartialEq, Eq, Debug, Clone)]
+pub struct SentenceModificationRoutine;
+
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app
@@ -30,20 +33,21 @@ impl Plugin for PlayerPlugin {
                     ui::do_snap,
                     ui::sentence_section_docks.run_if(on_event::<SentenceUIChanged>()),
                     ui::update_sentence_ui,
+                    ui::indicate_sentence_section_locks,
                     ui::reorder_sentence_ui,
                     spawn::remake_player_character,
                     spawn::disable_physics_for_invalid_sentence_structures,
-                ).chain(),
+                ).in_set(SentenceModificationRoutine).chain(),
                 (
                     ui::update_vocabulary,
                     ui::words_init,
-                    ui::indicate_sentence_section_locks,
                 ).chain(),
             ))
             .add_systems(FixedUpdate, (
                 apply_words::apply_wide,
                 apply_words::apply_tall,
-            ))
+                apply_words::apply_fluttering,
+            ).after(SentenceModificationRoutine))
             .add_systems(Startup, movement::spawn_player)
             .add_systems(Update, (
                 movement::do_movement,
@@ -69,6 +73,8 @@ pub enum WordID {
     Tall,
     Horse,
     And,
+    FlutteringUp,
+    FlutteringRight,
 }
 
 #[derive(Debug, Default)]
@@ -89,19 +95,19 @@ pub struct Words(pub HashMap<WordID, WordData>);
 
 new_key_type! { pub struct PhraseID; }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct PhraseData {
     pub word: Option<WordID>,
     pub kind: PhraseKind,
 }
 
 impl PhraseData {
-    fn kind(kind: PhraseKind) -> Self {
+    pub fn kind(kind: PhraseKind) -> Self {
         Self { word: None, kind }
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PhraseKind {
     Noun { 
         adjective: PhraseID,

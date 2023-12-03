@@ -50,6 +50,17 @@ pub enum SentenceUIPart {
     NounSlot,
 }
 
+impl SentenceUIPart {
+    fn is_slot(self) -> bool {
+        match self {
+            CombineJointL | CombineJoint | CombineJointR | NounJoint => false,
+            NounSlot | AndSlot | AdjectiveSlot => true,
+        }
+    }
+}
+
+use SentenceUIPart::*;
+
 #[derive(Component)]
 pub struct WordDock;
 
@@ -99,7 +110,6 @@ impl DraggableWordBundle {
 
 pub fn setup_word_ui(
     mut commands: Commands,
-    assets: Res<MiscAssets>,
 ) {
     let _inventory = commands.spawn((
         Inventory {},
@@ -136,7 +146,7 @@ pub fn setup_word_ui(
         }
     ));
 
-    let word_snap_parent = commands.spawn((
+    let _word_snap_parent = commands.spawn((
         WordSnapParent,
         NodeBundle {
             style: Style {
@@ -249,16 +259,12 @@ pub fn update_sentence_ui(
             &*assets,
         );
 
-        let unused_parts = sentence_parts.iter()
-            .filter(|part| !spawned.contains(&part.1))
-            .collect::<Vec<_>>();
-
-        for part in unused_parts.iter().rev() {
-            if docks.get(part.1).is_ok() {
-                commands.entity(part.1).despawn_recursive();
+        for unused in sentence_parts.iter().filter(|part| !spawned.contains(&part.1)) {
+            if docks.get(unused.1).is_ok() {
+                commands.entity(unused.1).despawn_recursive();
             } else {
-                commands.entity(part.1).remove_parent();
-                commands.entity(part.1).despawn();
+                commands.entity(unused.1).remove_parent();
+                commands.entity(unused.1).despawn();
             }
         }
     }
@@ -267,7 +273,7 @@ pub fn update_sentence_ui(
 pub fn spawn_snap_for(
     phrase: PhraseID, 
     sentence: (Entity, &SentenceStructure),
-    word_snap_parent: Entity,
+    parent: Entity,
     commands: &mut Commands,
     children: &Query<&Children>,
     sentence_parts: &Query<(&SentenceUIPart, Entity)>,
@@ -275,42 +281,52 @@ pub fn spawn_snap_for(
     assets: &MiscAssets,
 ) -> Entity {
     // TODO: have this return EntityCommands??
-    let mut find_or_spawn = |part_id: SentenceUIPart, find_index: usize, parent: Entity|
-      -> Entity {
+    let mut find_or_spawn = |
+        part_id: SentenceUIPart, 
+        parent: Entity, 
+        spawn_word: Option<WordID>,
+    | -> Entity {
         let mut new_entity = || {
             let entity = commands.spawn((part_id, InheritedVisibility::default(), GlobalTransform::default()))
                 .set_parent(parent)
                 .id();
-            match part_id {
-                SentenceUIPart::AndSlot => { 
-                    commands
-                        .spawn(DraggableWordBundle::for_word_snapped(WordID::And, assets))
-                        .set_parent(entity);
-                },
-                _ => {}
-            };
+            if let Some(word_id) = spawn_word {
+                commands
+                    .spawn(DraggableWordBundle::for_word_snapped(word_id, assets))
+                    .set_parent(entity);
+            }
             spawned.push(entity);
             entity
         };
 
-        let Ok(children) = children.get(parent) else { return new_entity(); };
+        let Ok(siblings) = children.get(parent) else { return new_entity(); };
 
-        let filtered_children = children.iter()
-            .filter(|e| {
+        let Some(existing) = siblings.iter().find(|e| {
                 let Ok(part) = sentence_parts.get(**e) else { return false };
                 return *part.0 == part_id;
-            })
-            .collect::<Vec<_>>();
+            }) else { return new_entity() };
 
-        let Some(existing) = filtered_children.get(find_index) else { return new_entity() };
-        spawned.push(**existing);
-        **existing
+        let first_child = children.get(*existing).map_or_else(|_| None, |c| c.get(0)).copied();
+        if let Some(word_id) = spawn_word && first_child.is_none() {
+            commands
+                .spawn(DraggableWordBundle::for_word_snapped(word_id, assets))
+                .set_parent(*existing);
+        } else if spawn_word == None && part_id.is_slot() && let Some(child) = first_child {
+            commands.add(move |world: &mut World| {
+                if !world.entity(child).contains::<Dragging>() {
+                    world.despawn(child);
+                }
+            })
+        }
+
+        spawned.push(*existing);
+        *existing
     };
 
     match &sentence.1.sentence[phrase] {
-        PhraseData { kind: PhraseKind::Noun { adjective }, .. } => {
-            let noun_joint = find_or_spawn(SentenceUIPart::NounJoint, 0, word_snap_parent);
-            let noun_slot = find_or_spawn(SentenceUIPart::NounSlot, 0, noun_joint);
+        PhraseData { kind: PhraseKind::Noun { adjective }, word } => {
+            let noun_joint = find_or_spawn(NounJoint, parent, None);
+            let noun_slot = find_or_spawn(NounSlot, noun_joint, *word);
 
             commands.entity(noun_joint).insert((
                 NodeBundle { 
@@ -340,8 +356,8 @@ pub fn spawn_snap_for(
 
             noun_slot
         },
-        PhraseData { kind: PhraseKind::Adjective, .. } => {
-            let adjective_slot = find_or_spawn(SentenceUIPart::AdjectiveSlot, 0, word_snap_parent);
+        PhraseData { kind: PhraseKind::Adjective, word } => {
+            let adjective_slot = find_or_spawn(AdjectiveSlot, parent, *word);
 
             commands.entity(adjective_slot).insert((
                 NodeBundle {
@@ -361,10 +377,10 @@ pub fn spawn_snap_for(
             adjective_slot
         },
         PhraseData { kind: PhraseKind::CombineAdjectives { l, r }, .. } => {
-            let combine_joint = find_or_spawn(SentenceUIPart::CombineJoint, 0, word_snap_parent);
-            let combine_jointl = find_or_spawn(SentenceUIPart::CombineJointL, 0, combine_joint);
-            let and_node = find_or_spawn(SentenceUIPart::AndSlot, 0, combine_joint);
-            let combine_jointr = find_or_spawn(SentenceUIPart::CombineJointR, 0, combine_joint);
+            let combine_joint = find_or_spawn(CombineJoint, parent, None);
+            let combine_jointl = find_or_spawn(CombineJointL, combine_joint, None);
+            let and_node = find_or_spawn(AndSlot, combine_joint, Some(WordID::And));
+            let combine_jointr = find_or_spawn(CombineJointR, combine_joint, None);
 
             commands.entity(combine_joint).insert((
                 NodeBundle {
@@ -416,7 +432,8 @@ pub fn indicate_sentence_section_locks(
 ) {
     for (section, children) in &sections {
         let Some(children) = children else { continue };
-        let Ok(mut word) = words.get_mut(children[0]) else { continue };
+        let Some(first_child) = children.get(0) else { continue };
+        let Ok(mut word) = words.get_mut(*first_child) else { continue };
 
         word.0.locked = section.locked;
         if section.locked {
