@@ -2,29 +2,35 @@ use crate::prelude::*;
 
 use super::spawn::*;
 
+#[derive(WorldQuery)]
+pub struct QWordObject {
+    pub words: &'static WordObject,
+    pub entity: Entity,
+}
+
 pub fn apply_wide(
-    mut wides: Query<(&mut Collider, &GlobalTransform, &mut Transform, Entity), &WideMark>,
-    all_transforms: Query<&GlobalTransform, Without<WideMark>>,
+    mut word_objects: Query<(QWordObject, &mut Collider, &GlobalTransform, &mut Transform)>,
+    all_transforms: Query<&GlobalTransform>,
     phys_context: Res<RapierContext>,
 ) {
     const WIDEN_SPEED: f32 = 0.15;
-    const MAX_WIDTH: f32 = 4.;
 
-    for mut wide in &mut wides {
-        if wide.2.scale.x >= MAX_WIDTH - 0.01 {
+    for mut object in &mut word_objects {
+        let max_width = if object.0.words.adjectives.wide { 4. } else { 1. };
+        if (object.3.scale.x - max_width).abs() <= 0.01 {
             continue;
         }
 
-        let old_scale = wide.2.scale.x;
-        let scale_diff = 1. + (MAX_WIDTH - old_scale) * WIDEN_SPEED;
+        let old_scale = object.3.scale.x;
+        let scale_diff = 1. + (max_width - old_scale) * WIDEN_SPEED;
 
-        let current_collider_rect = wide.0.as_typed_shape();
+        let current_collider_rect = object.1.as_typed_shape();
         let widened_shape = current_collider_rect
             .raw_scale_by(Vec2::new(scale_diff, 0.99), 0)
             .unwrap();
         let widened_col = Collider::from(widened_shape);
 
-        let (_, rotation, translation) = wide.1.to_scale_rotation_translation();
+        let (_, rotation, translation) = object.2.to_scale_rotation_translation();
 
         let mut pushback_vector = Vec2::ZERO;
 
@@ -33,7 +39,7 @@ pub fn apply_wide(
             rotation.x, // TODO: get rotation here
             &widened_col,
             QueryFilter {
-                exclude_collider: Some(wide.3),
+                exclude_collider: Some(object.0.entity),
                 ..default()
             },
             |colliding_shape| {
@@ -47,43 +53,43 @@ pub fn apply_wide(
 
         pushback_vector = pushback_vector.normalize_or_zero() * 0.1;
 
-        wide.2.translation += pushback_vector.extend(0.);
-        wide.2.scale.x = new_scale;
+        object.3.translation += pushback_vector.extend(0.);
+        object.3.scale.x = new_scale;
     }
 }
 
 pub fn apply_tall(
-    mut wides: Query<(&mut Collider, &GlobalTransform, &mut Transform, Entity), &TallMark>,
-    all_transforms: Query<&GlobalTransform, Without<WideMark>>,
+    mut word_objects: Query<(QWordObject, &mut Collider, &GlobalTransform, &mut Transform)>,
+    all_transforms: Query<&GlobalTransform>,
     phys_context: Res<RapierContext>,
 ) {
     const HEIGHTEN_SPEED: f32 = 0.1;
-    const MAX_HEIGHT: f32 = 4.;
 
-    for mut wide in &mut wides {
-        if wide.2.scale.y >= MAX_HEIGHT - 0.01 {
+    for mut object in &mut word_objects {
+        let max_height = if object.0.words.adjectives.tall { 4. } else { 1. };
+        if (object.3.scale.y - max_height).abs() <= 0.01 {
             continue;
         }
 
-        let old_scale = wide.2.scale.y;
-        let scale_diff = 1. + (MAX_HEIGHT - old_scale) * HEIGHTEN_SPEED;
+        let old_scale = object.3.scale.y;
+        let scale_diff = 1. + (max_height - old_scale) * HEIGHTEN_SPEED;
 
-        let current_collider_rect = wide.0.as_typed_shape();
-        let widened_shape = current_collider_rect
+        let current_collider_rect = object.1.as_typed_shape();
+        let heightened_shape = current_collider_rect
             .raw_scale_by(Vec2::new(0.99, scale_diff), 0)
             .unwrap();
-        let widened_col = Collider::from(widened_shape);
+        let heightened_col = Collider::from(heightened_shape);
 
-        let (_, rotation, translation) = wide.1.to_scale_rotation_translation();
+        let (_, rotation, translation) = object.2.to_scale_rotation_translation();
 
         let mut pushback_vector = Vec2::ZERO;
 
         phys_context.intersections_with_shape(
             translation.xy(),
             rotation.x, // TODO: get rotation here
-            &widened_col,
+            &heightened_col,
             QueryFilter {
-                exclude_collider: Some(wide.3),
+                exclude_collider: Some(object.0.entity),
                 ..default()
             },
             |colliding_shape| {
@@ -97,28 +103,31 @@ pub fn apply_tall(
 
         pushback_vector = pushback_vector.normalize_or_zero() * 0.1;
 
-        wide.2.translation += pushback_vector.extend(0.);
-        wide.2.scale.y = new_scale;
+        object.3.translation += pushback_vector.extend(0.);
+        object.3.scale.y = new_scale;
     }
 }
 
 pub fn apply_fluttering(
-    mut flutters: Query<(&FlutteringMark, Entity)>,
+    mut flutters: Query<QWordObject>,
     parents: Query<&Parent>,
     mut velocities: Query<&mut Velocity>,
+    time: Res<Time>,
 ) {
     for flutter in &mut flutters {
-        for ancestor in parents.iter_ancestors(flutter.1) {
+        let Some(direction) = flutter.words.adjectives.fluttering else { continue };
+
+        for ancestor in parents.iter_ancestors(flutter.entity) {
             if let Ok(mut velocity) = velocities.get_mut(ancestor) {
-                let dir_vector = match flutter.0.direction {
+                let dir_vector = match direction {
                     FlutteringDirection::Up => Vec2::new(0., 2.),
                     FlutteringDirection::Down => todo!(),
                     FlutteringDirection::Left => todo!(),
-                    FlutteringDirection::Right => Vec2::new(10., 0.),
+                    FlutteringDirection::Right => Vec2::new(8., 0.),
                 };
 
                 if (velocity.linvel * dir_vector).length() < dir_vector.length() * 100. {
-                    velocity.linvel += dir_vector;
+                    velocity.linvel += dir_vector * time.delta_seconds() * 60.;
                 } else {
                     // entity is already moving at a speed higher than 100 times the
                     // direction of the fan, we don't have to do anything.

@@ -1,4 +1,4 @@
-use bevy::ecs::system::{EntityCommands, RunSystemOnce};
+use bevy::ecs::system::{EntityCommands, RunSystemOnce, EntityCommand};
 
 use crate::prelude::*;
 use super::*;
@@ -8,9 +8,18 @@ enum SentenceParseError {
     Other,
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct WordObject {
     pub sentence: Entity,
+    pub noun_word: WordID,
+    pub adjectives: AdjectiveStates,
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct AdjectiveStates {
+    pub wide: bool,
+    pub tall: bool,
+    pub fluttering: Option<FlutteringDirection>,
 }
 
 #[derive(Bundle, Clone, Default)]
@@ -36,16 +45,26 @@ pub fn remake_player_character(
     mut commands: Commands,
     assets: Res<MiscAssets>,
     mut spawn_events: EventWriter<SentenceSpawn>,
+    children: Query<&Children>,
+    word_objects: Query<&WordObject>,
 ) {
     for change in structure_change_evt.read() {
         let mut sentence = sentences.get_mut(change.on).unwrap();
         let sentence_ptr = (&*sentence.0, sentence.1);
         
-        match spawn_with_noun(sentence.0.root, sentence_ptr, &*assets, sentence.1) {
-            Ok(commmand_closure) => {
+        match spawn_with_noun(sentence.0.root, sentence_ptr, &*assets, sentence.1,
+          &children, &word_objects) {
+            Ok(SpawnResult { command_closure, used_existing_entities }) => {
                 sentence.0.valid = true;
-                commands.entity(sentence.1).despawn_descendants();
-                commmand_closure(&mut commands);
+
+                for child in children.iter_descendants(sentence.1) {
+                    if !used_existing_entities.contains(&child) {
+                        commands.entity(sentence.1).despawn();
+                    }
+                }
+
+                command_closure(&mut commands);
+
                 all_sprites.for_each_mut(|mut sprite| sprite.color = Color::WHITE);
                 spawn_events.send(SentenceSpawn);
             },
@@ -58,104 +77,134 @@ pub fn remake_player_character(
     }
 }
 
-#[derive(Component)]
-pub struct WideMark;
-
-#[derive(Component)]
-pub struct TallMark;
-
-#[derive(Component)]
-pub struct FlutteringMark {
-    pub direction: FlutteringDirection,
-}
-
+#[derive(Copy, Debug, Clone)]
 pub enum FlutteringDirection { Up, Down, Left, Right }
+
+struct SpawnResult {
+    command_closure: Box<dyn FnOnce(&mut Commands)>,
+    used_existing_entities: HashSet<Entity>,
+}
 
 fn spawn_with_noun(
     word: PhraseID,
     sentence: (&SentenceStructure, Entity),
     assets: &MiscAssets,
     parent: Entity,
-) -> Result<Box<dyn FnOnce(&mut Commands)>, SentenceParseError> {
-    match &sentence.0.sentence[word] {
+    children: &Query<&Children>,
+    word_objects: &Query<&WordObject>,
+) -> Result<SpawnResult, SentenceParseError> {
+    match sentence.0.sentence[word] {
         PhraseData { word: None, .. } => return Err(SentenceParseError::Other),
-        PhraseData { word: Some(word), kind: PhraseKind::Noun { adjective }} => {
-            let mut bundle = WordObjectBundle::default();
-            let word_object = WordObject { sentence: sentence.1, };
+        PhraseData { word: Some(noun_word), kind: PhraseKind::Noun { adjective }, .. } => {
+            let existing_noun = find_preexisting_noun(parent, noun_word, 
+                                    children, word_objects);
+            
+            let mut adjective_states = AdjectiveStates::default();
+            modify_with_adjective(adjective, sentence, &*assets, &mut adjective_states)?;
 
-            let modifier = modify_with_adjective(*adjective, sentence, &*assets)?;
+            let word_object = WordObject { 
+                sentence: sentence.1, 
+                noun_word, 
+                adjectives: adjective_states,
+            };
 
-            match word {
+            let mut used_existing_entities = HashSet::new();
+            if let Some(existing_noun) = existing_noun { 
+                used_existing_entities.insert(existing_noun);
+            }
+
+            let command_closure: Box<dyn FnOnce(&mut Commands)> = match noun_word {
                 WordID::Baby => {
-                    bundle.texture = assets.square_pale.clone();
-                    let collider = (
-                        Collider::cuboid(8.0, 8.0), 
-                        CollidingEntities::default(),
-                        ColliderMassProperties::Density(1.2),
-                    );
-                    Ok(Box::new(move |commands| {
-                        let mut new_entity = commands
-                            .spawn((bundle, collider, word_object, Name::new("Baby")));
+                    let square_pale = assets.square_pale.clone();
+                    Box::new(move |commands| {
+                        let mut new = if let Some(existing) = existing_noun {
+                            commands.entity(existing)
+                        } else {
+                            commands.spawn((
+                                WordObjectBundle { texture: square_pale, ..default() },
+                                (
+                                    Collider::cuboid(8.0, 8.0), 
+                                    CollidingEntities::default(),
+                                    ColliderMassProperties::Density(1.2),
+                                ),
+                                Name::new("Baby"),
+                            ))
+                        };
 
-                        new_entity.set_parent(parent);
-
-                        modifier(&mut new_entity);
-                    }))
+                        new.insert(word_object).set_parent(parent);
+                    })
                 },
                 WordID::Horse => {
-                    bundle.texture = assets.horse.clone();
-                    let collider = (
-                        Collider::cuboid(32.0, 8.0), 
-                        CollidingEntities::default(),
-                        ColliderMassProperties::Density(0.5),
-                    );
-                    Ok(Box::new(move |commands| {
-                        let mut new_entity = commands
-                            .spawn((bundle, collider, word_object, Name::new("Horse")));
+                    let horse_asset = assets.horse.clone();
+                    Box::new(move |commands| {
+                        let mut new = if let Some(existing) = existing_noun {
+                            commands.entity(existing)
+                        } else {
+                            commands.spawn((
+                                WordObjectBundle { texture: horse_asset, ..default() },
+                                (
+                                    Collider::cuboid(32.0, 8.0), 
+                                    CollidingEntities::default(),
+                                    ColliderMassProperties::Density(0.5),
+                                ),
+                                Name::new("Horse"),
+                            ))
+                        };
 
-                        new_entity.set_parent(parent);
-
-                        modifier(&mut new_entity);
-                    }))
+                        new.insert(word_object).set_parent(parent);
+                    })
                 }
                 _ => return Err(SentenceParseError::Other),
-            }
+            };
+
+            Ok(SpawnResult { command_closure, used_existing_entities })
         }
         _ => return Err(SentenceParseError::Other),
     }
+}
+
+fn find_preexisting_noun(
+    parent: Entity,
+    word: WordID,
+    children: &Query<&Children>,
+    word_objects: &Query<&WordObject>,
+) -> Option<Entity> {
+    let Ok(children) = children.get(parent) else { return None };
+    
+    children.iter().find(|child| {
+        let Ok(word_object) = word_objects.get(**child).cloned() else { return false };
+        return word_object.noun_word == word
+    }).copied()
+
 }
 
 fn modify_with_adjective(
     word: PhraseID,
     sentence: (&SentenceStructure, Entity),
     assets: &MiscAssets,
-) -> Result<Box<dyn FnOnce(&mut EntityCommands)>, SentenceParseError> {
-    match &sentence.0.sentence[word] {
-        PhraseData { word: None, .. } => { Ok(Box::new(|_|{})) },
-        PhraseData { word: Some(word), kind: PhraseKind::Adjective } => {
+    adjective_states: &mut AdjectiveStates,
+) -> Result<(), SentenceParseError> {
+    match sentence.0.sentence[word] {
+        PhraseData { word: None, .. } => { },
+        PhraseData { word: Some(word), kind: PhraseKind::Adjective, .. } => {
             match word {
-                WordID::Wide => Ok(Box::new(|entity| { entity.insert(WideMark); })),
-                WordID::Tall => Ok(Box::new(|entity| { entity.insert(TallMark); })),
-                WordID::FlutteringUp => Ok(Box::new(|entity| { 
-                    entity.insert(FlutteringMark { direction: FlutteringDirection::Up });
-                })),
-                WordID::FlutteringRight => Ok(Box::new(|entity| { 
-                    entity.insert(FlutteringMark { direction: FlutteringDirection::Right });
-                })),
+                WordID::Wide => adjective_states.wide = true,
+                WordID::Tall => adjective_states.tall = true,
+                WordID::FlutteringUp => 
+                    adjective_states.fluttering = Some(FlutteringDirection::Up),
+                WordID::FlutteringRight =>
+                    adjective_states.fluttering = Some(FlutteringDirection::Right),
                 _ => return Err(SentenceParseError::Other),
             }
         }
-        PhraseData { word: Some(WordID::And), kind: PhraseKind::CombineAdjectives { l, r } } => {
-            let l_application = modify_with_adjective(*l, sentence, assets)?;
-            let r_application = modify_with_adjective(*r, sentence, assets)?;
-
-            Ok(Box::new(|entity| {
-                l_application(entity);
-                r_application(entity);
-            }))
+        PhraseData { word: Some(WordID::And), kind: PhraseKind::Combine { l, r }, .. } => {
+            modify_with_adjective(l, sentence, assets, adjective_states)?;
+            modify_with_adjective(r, sentence, assets, adjective_states)?;
         }
         _ => return Err(SentenceParseError::Other),
     }
+
+    Ok(())
 }
 
 pub fn disable_physics_for_invalid_sentence_structures(

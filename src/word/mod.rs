@@ -95,25 +95,21 @@ pub struct Words(pub HashMap<WordID, WordData>);
 
 new_key_type! { pub struct PhraseID; }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct PhraseData {
     pub word: Option<WordID>,
     pub kind: PhraseKind,
+    pub locked: bool,
 }
 
-impl PhraseData {
-    pub fn kind(kind: PhraseKind) -> Self {
-        Self { word: None, kind }
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum PhraseKind {
     Noun { 
         adjective: PhraseID,
     },
+    #[default]
     Adjective,
-    CombineAdjectives {
+    Combine {
         l: PhraseID,
         r: PhraseID,
     },

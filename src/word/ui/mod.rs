@@ -27,12 +27,6 @@ pub struct SentenceSection {
     pub locked: bool,
 }
 
-impl SentenceSection {
-    fn new(for_phrase: PhraseID, sentence_entity: Entity) -> Self {
-        Self { for_phrase, sentence_entity, locked: false }
-    }
-}
-
 #[derive(Debug, Component)]
 pub struct SentenceJoint;
 
@@ -158,24 +152,6 @@ pub fn setup_word_ui(
             ..default()
         },
     )).id();
-
-    //let _da = commands.spawn(TextBundle {
-    //    text: Text::from_section(
-    //        "Da",
-    //        TextStyle {
-    //            // This font is loaded and will be used instead of the default font.
-    //            font: assets.font.clone(),
-    //            font_size: 100.0,
-    //            ..default()
-    //        }
-    //    ),
-    //    style: Style {
-    //        min_height: Val::Px(60.0),
-    //        padding: UiRect::all(Val::Px(10.)),
-    //        ..default()
-    //    },
-    //    ..default()
-    //}).set_parent(word_snap_parent);
 }
 
 pub fn words_init(
@@ -271,7 +247,7 @@ pub fn update_sentence_ui(
 }
 
 pub fn spawn_snap_for(
-    phrase: PhraseID, 
+    for_phrase: PhraseID, 
     sentence: (Entity, &SentenceStructure),
     parent: Entity,
     commands: &mut Commands,
@@ -323,10 +299,12 @@ pub fn spawn_snap_for(
         *existing
     };
 
-    match &sentence.1.sentence[phrase] {
-        PhraseData { kind: PhraseKind::Noun { adjective }, word } => {
+    let sentence_entity = sentence.0;
+
+    match sentence.1.sentence[for_phrase] {
+        PhraseData { kind: PhraseKind::Noun { adjective }, word, locked } => {
             let noun_joint = find_or_spawn(NounJoint, parent, None);
-            let noun_slot = find_or_spawn(NounSlot, noun_joint, *word);
+            let noun_slot = find_or_spawn(NounSlot, noun_joint, word);
 
             commands.entity(noun_joint).insert((
                 NodeBundle { 
@@ -336,7 +314,7 @@ pub fn spawn_snap_for(
                 SentenceJoint,
             ));
 
-            spawn_snap_for(*adjective, sentence, noun_joint, 
+            spawn_snap_for(adjective, sentence, noun_joint, 
                 commands, children, sentence_parts, spawned, assets);
 
             commands.entity(noun_slot).insert((
@@ -350,14 +328,14 @@ pub fn spawn_snap_for(
                     },
                     ..default()
                 },
-                SentenceSection::new(phrase, sentence.0),
+                SentenceSection { for_phrase, sentence_entity, locked },
                 WordDock,
             ));
 
             noun_slot
         },
-        PhraseData { kind: PhraseKind::Adjective, word } => {
-            let adjective_slot = find_or_spawn(AdjectiveSlot, parent, *word);
+        PhraseData { kind: PhraseKind::Adjective, word, locked } => {
+            let adjective_slot = find_or_spawn(AdjectiveSlot, parent, word);
 
             commands.entity(adjective_slot).insert((
                 NodeBundle {
@@ -370,13 +348,13 @@ pub fn spawn_snap_for(
                     },
                     ..default()
                 },
-                SentenceSection::new(phrase, sentence.0),
+                SentenceSection { for_phrase, sentence_entity, locked },
                 WordDock,
             ));
 
             adjective_slot
         },
-        PhraseData { kind: PhraseKind::CombineAdjectives { l, r }, .. } => {
+        PhraseData { kind: PhraseKind::Combine { l, r }, locked, .. } => {
             let combine_joint = find_or_spawn(CombineJoint, parent, None);
             let combine_jointl = find_or_spawn(CombineJointL, combine_joint, None);
             let and_node = find_or_spawn(AndSlot, combine_joint, Some(WordID::And));
@@ -391,7 +369,7 @@ pub fn spawn_snap_for(
             ));
 
             commands.entity(combine_jointl).insert(NodeBundle::default());
-            spawn_snap_for(*l, sentence, combine_jointl, 
+            spawn_snap_for(l, sentence, combine_jointl, 
                 commands, children, sentence_parts, spawned, assets);
 
             commands.entity(and_node).insert((
@@ -404,12 +382,12 @@ pub fn spawn_snap_for(
                     },
                     ..default()
                 },
-                SentenceSection::new(phrase, sentence.0),
+                SentenceSection { for_phrase, sentence_entity, locked },
                 WordDock,
             )).set_parent(combine_joint);
 
             commands.entity(combine_jointr).insert(NodeBundle::default());
-            spawn_snap_for(*r, sentence, combine_jointr, 
+            spawn_snap_for(r, sentence, combine_jointr, 
                 commands, children, sentence_parts, spawned, assets);
 
             combine_joint
@@ -464,12 +442,14 @@ pub fn sentence_section_docks(
         if ui_change.added {
             match word_id {
                 WordID::And => {
-                    let l = sentence.insert(PhraseData::kind(PhraseKind::Adjective));
-                    let r = sentence.insert(PhraseData::kind(PhraseKind::Adjective));
+                    let existing = sentence[set_phrase];
+                    let l = sentence.insert(existing);
+                    let r = sentence.insert(existing);
 
                     sentence[set_phrase] = PhraseData {
                         word: Some(WordID::And),
-                        kind: PhraseKind::CombineAdjectives { l, r },
+                        kind: PhraseKind::Combine { l, r },
+                        ..default()
                     };
                 }
                 other_word_id => {
@@ -479,7 +459,8 @@ pub fn sentence_section_docks(
         } else {
             match word_id {
                 WordID::And => {
-                    sentence[set_phrase] = PhraseData::kind(PhraseKind::Adjective);
+                    sentence[set_phrase] = 
+                        PhraseData { kind: PhraseKind::Adjective, ..default() };
                 },
                 _ => sentence[set_phrase].word = None,
             }

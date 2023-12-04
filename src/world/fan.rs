@@ -1,4 +1,4 @@
-use crate::{prelude::*, word::{*, spawn::FlutteringMark}};
+use crate::{prelude::*, word::{*, apply_words::QWordObject}};
 
 use super::WorldObject;
 
@@ -60,15 +60,19 @@ pub fn fans_update(
     fans: Query<(&Fan, &CollidingEntities, &Transform)>,
     parents: Query<&Parent>,
     mut sentences: Query<(&mut SentenceStructure, Entity)>,
-    currently_fluttering: Query<Entity, With<FlutteringMark>>,
+    word_objects: Query<QWordObject>,
     mut structure_changes: EventWriter<SentenceStructureChanged>,
 ) {
+    let currently_fluttering: HashSet::<Entity> = word_objects.iter()
+        .filter(|o| o.words.adjectives.fluttering.is_some())
+        .map(|o| o.entity)
+        .collect();
     let mut all_colliding = HashSet::<Entity>::new();
 
     for fan in &fans {
         for colliding in fan.1.iter() {
             all_colliding.insert(colliding);
-            if currently_fluttering.contains(colliding) { continue; }
+            if currently_fluttering.contains(&colliding) { continue; }
 
             for ancestor in parents.iter_ancestors(colliding) {
                 if let Ok(mut sentence) = sentences.get_mut(ancestor) {
@@ -85,6 +89,7 @@ pub fn fans_update(
                     };
 
                     sentence.0.sentence[adjective_id].word = Some(dir);
+                    sentence.0.sentence[adjective_id].locked = true;
 
                     structure_changes.send(SentenceStructureChanged {
                         on: sentence.1,
@@ -96,7 +101,7 @@ pub fn fans_update(
         }
     }
 
-    for object in &currently_fluttering {
+    for object in currently_fluttering {
         if !all_colliding.contains(&object) {
             for ancestor in parents.iter_ancestors(object) {
                 if let Ok(mut sentence) = sentences.get_mut(ancestor) {
@@ -107,7 +112,7 @@ pub fn fans_update(
                     id_of_adjective(
                         &mut *sentence.0, root,
                         &|id, sentence| {
-                            if let PhraseKind::CombineAdjectives { l, r } = 
+                            if let PhraseKind::Combine { l, r } = 
                                 sentence.sentence[id].kind {
                                 let search = [
                                     Some(WordID::FlutteringUp), 
@@ -123,7 +128,8 @@ pub fn fans_update(
 
                                 sentence.sentence[id] = PhraseData {
                                     word,
-                                    kind: PhraseKind::Adjective
+                                    kind: PhraseKind::Adjective,
+                                    locked: false,
                                 };
 
                                 Some(id)
@@ -157,7 +163,7 @@ fn id_of_adjective(
         PhraseData { kind: PhraseKind::Noun { adjective }, .. } => {
             id_of_adjective(sentence, adjective, filter)
         }
-        PhraseData { kind: PhraseKind::CombineAdjectives { l, r }, .. } => {
+        PhraseData { kind: PhraseKind::Combine { l, r }, .. } => {
             id_of_adjective(sentence, l, filter)
                 .or_else(|| id_of_adjective(sentence, r, filter))
         }
@@ -169,14 +175,16 @@ fn split_adjectives(phrase_id: PhraseID, sentence: &mut SentenceStructure) -> Op
     let phrase_data = sentence.sentence[phrase_id];
     if phrase_data.kind == PhraseKind::Adjective {
         let l = sentence.sentence.insert(
-            PhraseData::kind(PhraseKind::Adjective));
+            PhraseData { kind: PhraseKind::Adjective, ..default() });
         let r = sentence.sentence.insert(PhraseData {
             word: phrase_data.word,
             kind: PhraseKind::Adjective,
+            ..default()
         });
         sentence.sentence[phrase_id] = PhraseData {
             word: Some(WordID::And),
-            kind: PhraseKind::CombineAdjectives { l, r },
+            kind: PhraseKind::Combine { l, r },
+            locked: true,
         };
         Some(l)
     } else {

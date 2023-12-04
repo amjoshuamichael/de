@@ -27,14 +27,10 @@ pub fn spawn_player(
         LockedAxes::ROTATION_LOCKED,
         {
             let mut map = SlotMap::<PhraseID, PhraseData>::with_key();
-            let adjective = map.insert(PhraseData {
-                word: None,
-                kind: PhraseKind::Adjective,
-            });
-            let root = map.insert(PhraseData {
-                word: None,
-                kind: PhraseKind::Noun { adjective },
-            });
+            let adjective = map.insert(
+                PhraseData { kind: PhraseKind::Adjective, ..default() });
+            let root = map.insert(
+                PhraseData { kind: PhraseKind::Noun { adjective }, ..default() });
             SentenceStructure {
                 sentence: map,
                 root,
