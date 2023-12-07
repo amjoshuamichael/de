@@ -49,7 +49,7 @@ impl WorldObject for WordTag {
     }
 }
 
-pub fn word_tags_update(
+pub fn update(
     mut word_tags: Query<(&WordTag, &CollidingEntities, &mut Visibility, Entity)>,
     parents: Query<&Parent>,
     players: Query<Entity, With<Player>>,

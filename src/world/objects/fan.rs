@@ -52,7 +52,7 @@ impl WorldObject for Fan {
     }
 }
 
-pub fn fans_update(
+pub fn update(
     fans: Query<(&Fan, &CollidingEntities, &Transform)>,
     parents: Query<&Parent>,
     mut sentences: Query<(&mut SentenceStructure, Entity)>,
@@ -81,7 +81,7 @@ pub fn fans_update(
                     let dir = match fan.2.rotation.z {
                         z if z > -0.35 && z < 0.35 => WordID::FlutteringUp,
                         z if z < -0.35 && z > -1.05 => WordID::FlutteringRight,
-                        _ => panic!(),
+                        _ => WordID::FlutteringUp,
                     };
 
                     sentence.0.sentence[adjective_id].word = Some(dir);

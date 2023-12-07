@@ -80,7 +80,7 @@ impl DraggableWordBundle {
                     word_id.forms().basic,
                     TextStyle {
                         font: assets.font.clone(),
-                        font_size: 100.0,
+                        font_size: 60.0,
                         ..default()
                     }
                 ),
@@ -117,12 +117,12 @@ pub fn setup_word_ui(
                     basic_rows.push(GridTrack::flex(1.0));
                     basic_rows
                 },
-                width: Val::Percent(25.),
+                width: Val::Percent(15.),
                 height: Val::Percent(100.),
                 right: Val::Px(0.),
+                row_gap: Val::Px(10.),
                 ..default()
             },
-            background_color: Color::YELLOW_GREEN.with_a(0.2).into(),
             ..default()
         },
         WordDock,
@@ -430,7 +430,7 @@ pub fn dock_words_in_sentence_sections(
     let mut modified_sentences = HashSet::<Entity>::new();
 
     for ui_change in ui_changes.read() {
-        // if this isn't a dock, it's the inventory, so we do nothing
+        // if this isn't a dock, we do nothing
         let Ok(dock) = docks.get(ui_change.for_dock) else { continue };
         let mut sentence_components = sentences.get_mut(dock.sentence_entity).unwrap();
         let sentence = &mut sentence_components.1.sentence;

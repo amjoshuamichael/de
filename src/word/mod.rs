@@ -41,6 +41,8 @@ impl Plugin for PlayerPlugin {
                 ui::update_vocabulary,
             ))
             .add_systems(
+                // these run deffered, after the node spawn commands issued by
+                // update_sentence_ui.
                 PostSentenceModificationActionsSet, 
                 (ui::indicate_sentence_section_locks, ui::reorder_sentence_ui),
             )

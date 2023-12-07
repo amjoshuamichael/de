@@ -30,7 +30,7 @@ impl WorldObject for PlayerSpawner {
     }
 }
 
-pub fn player_spawner_update(
+pub fn update(
     spawners: Query<&Transform, (With<PlayerSpawner>, Changed<Transform>)>,
     mut player: Query<&mut Transform, (With<Player>, Without<PlayerSpawner>)>,
     mut has_spawned: Local<bool>,

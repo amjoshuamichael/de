@@ -1,6 +1,6 @@
 const LOAD_AT_START: &'static str = 
-//"jungle.world.ron";
-"jungle2.world.ron";
+"jungle.world.ron";
+//"jungle2.world.ron";
 
 use crate::{prelude::*, word::WordID};
 use bevy::{asset::{*, io::*}, app::AppExit, window::exit_on_all_closed};
@@ -26,10 +26,11 @@ impl Plugin for WorldPlugin {
             ))
             .add_state::<WorldEditorState>()
             .add_systems(Update, (
-                word_tag::word_tags_update,
-                lock_zone::lock_zone_update,
-                player_spawner::player_spawner_update,
-                fan::fans_update.before(SentenceModificationRoutine),
+                word_tag::update,
+                lock_zone::update,
+                player_spawner::update,
+                fan::update.before(SentenceModificationRoutine),
+                death_zone::update,
             ))
             .add_plugins(SimpleTileMapPlugin)
             .add_plugins(WorldEditorPlugin)
@@ -48,6 +49,7 @@ pub struct DeWorld {
     #[serde(default)] word_tags: Vec<WordTagInWorld>,
     #[serde(default)] lock_zones: Vec<LockZoneInWorld>,
     #[serde(default)] fans: Vec<FanInWorld>,
+    #[serde(default)] death_zones: Vec<DeathZoneInWorld>,
 }
 
 impl Default for DeWorld {
@@ -58,6 +60,7 @@ impl Default for DeWorld {
             word_tags: default(),
             lock_zones: default(),
             fans: default(),
+            death_zones: default(),
         }
     }
 }
@@ -217,6 +220,9 @@ fn load_world(
     for fan in &world.fans {
         commands.spawn(Fan::bundle(fan, &assets)).set_parent(tilemap.entity);
     }
+    for death_zone in &world.death_zones {
+        commands.spawn(DeathZone::bundle(death_zone, &assets)).set_parent(tilemap.entity);
+    }
 }
 
 #[derive(Default, Bundle)]
@@ -287,6 +293,7 @@ fn save_world(
     lock_zones: Query<&Transform, With<LockZone>>,
     spawners: Query<&Transform, With<PlayerSpawner>>,
     fans: Query<(&Fan, &Transform)>,
+    death_zones: Query<&Transform, With<DeathZone>>,
 ) {
     use std::path::*;
     use std::fs::*;
@@ -315,6 +322,10 @@ fn save_world(
                 world_to_save.fans.push(FanInWorld {
                     strength: fan.0.strength,
                     transform: *fan.1,
+                });
+            } else if let Ok(death_zone) = death_zones.get(child) {
+                world_to_save.death_zones.push(DeathZoneInWorld {
+                    transform: *death_zone,
                 });
             }
 

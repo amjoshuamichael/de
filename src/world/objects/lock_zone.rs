@@ -42,7 +42,7 @@ impl WorldObject for LockZone {
     }
 }
 
-pub fn lock_zone_update(
+pub fn update(
     zone_changes: Query<(), (Changed<CollidingEntities>, With<LockZone>)>,
     zones: Query<(&LockZone, &CollidingEntities)>,
     word_objects: Query<&WordObject>,
