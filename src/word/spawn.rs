@@ -59,7 +59,7 @@ pub fn remake_player_character(
 
                 for child in children.iter_descendants(sentence.1) {
                     if !used_existing_entities.contains(&child) {
-                        commands.entity(child).despawn();
+                        commands.entity(child).despawn_recursive();
                     }
                 }
 
@@ -125,7 +125,8 @@ fn spawn_with_noun(
                                 (
                                     Collider::cuboid(8.0, 8.0), 
                                     CollidingEntities::default(),
-                                    ColliderMassProperties::Density(1.2),
+                                    ColliderMassProperties::Mass(180.),
+                                    ActiveEvents::all(),
                                 ),
                                 Name::new("Baby"),
                             ))
@@ -146,6 +147,7 @@ fn spawn_with_noun(
                                     Collider::cuboid(32.0, 8.0), 
                                     CollidingEntities::default(),
                                     ColliderMassProperties::Density(0.5),
+                                    ActiveEvents::all(),
                                 ),
                                 Name::new("Horse"),
                             ))

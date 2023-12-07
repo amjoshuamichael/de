@@ -10220,7 +10220,7 @@
             ),
         ),
         (
-            word_id: Wide,
+            word_id: Horse,
             transform: (
                 translation: (711.9103, 777.0421, 0.0),
                 rotation: (0.0, 0.0, 0.0, 1.0),

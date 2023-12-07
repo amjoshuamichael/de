@@ -121,7 +121,7 @@ pub fn apply_fluttering(
                     FlutteringDirection::Up => Vec2::new(0., 4.),
                     FlutteringDirection::Down => todo!(),
                     FlutteringDirection::Left => todo!(),
-                    FlutteringDirection::Right => Vec2::new(8., 0.),
+                    FlutteringDirection::Right => Vec2::new(16., 0.),
                 };
 
                 if (velocity.linvel * dir_vector).length() < dir_vector.length() * 100. {

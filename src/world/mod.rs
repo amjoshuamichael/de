@@ -1,6 +1,7 @@
 const LOAD_AT_START: &'static str = 
 "jungle.world.ron";
 //"jungle2.world.ron";
+//"test.world.ron";
 
 use crate::{prelude::*, word::WordID};
 use bevy::{asset::{*, io::*}, app::AppExit, window::exit_on_all_closed};

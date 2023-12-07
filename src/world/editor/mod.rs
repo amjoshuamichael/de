@@ -326,6 +326,8 @@ pub fn edit_world(
                        transformation.translation = 
                            (transformation.translation / 8.).round() * 8.;
                        transformation.scale = transformation.scale.round();
+                       transformation.rotation.z = 
+                           (transformation.rotation.z * (PI / 2.)).round() * (PI / 2.);
                    }
                 }
             },
@@ -339,7 +341,6 @@ pub fn edit_world(
             }
             _ => {},
         }
-
     }
 }
 

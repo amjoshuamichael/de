@@ -25,6 +25,16 @@ pub mod prelude {
         debug_assert!(n >= 0. && n <= 1.);
         a * (1. - n) + b * n
     }
+
+    pub fn reflect(dir: Vec2, mirror: Vec2) -> Vec2 {
+        // https://math.stackexchange.com/questions/13261/how-to-get-a-reflection-vector
+        dir - 2. * (dir.dot(mirror)) * mirror
+    }
+
+    use std::ops::*;
+    pub fn avg<T: Add<Output = T> + Div<f32, Output = T>>(a: T, b: T) -> T {
+        (a + b) / 2.
+    }
 }
 
 use bevy::window::CompositeAlphaMode;
