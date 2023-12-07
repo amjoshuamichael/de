@@ -1,13 +1,13 @@
 use crate::{prelude::*, word::{movement::Player, WordID}};
 use bevy_rapier2d::prelude::Collider;
 
-use crate::word::{Words, ui::VocabChange};
+use crate::word::ui::VocabChange;
 
 use super::WorldObject;
 
 #[derive(Default, Component)]
 pub struct WordTag {
-    pub(super) word_id: WordID,
+    pub word_id: WordID,
 }
 
 #[derive(Default, Bundle)]
@@ -24,40 +24,28 @@ pub struct WordTagBundle {
 
 #[derive(Debug, TypePath, Serialize, Deserialize)]
 pub struct WordTagInWorld {
-    pub(super) word_id: WordID,
-    pub(super) transform: Transform,
+    pub word_id: WordID,
+    pub transform: Transform,
 }
 
 impl WorldObject for WordTag {
     type Bundle = WordTagBundle;
-    type InWorld<'a> = WordTagInWorld;
+    type InWorld = WordTagInWorld;
 
-    fn bundle(in_world: &WordTagInWorld) -> WordTagBundle {
+    fn bundle(in_world: &WordTagInWorld, assets: &MiscAssets) -> WordTagBundle {
         WordTagBundle {
             word_tag: WordTag { word_id: in_world.word_id },
-                sprite: SpriteBundle {
-                    transform: in_world.transform,
-                    ..default()
-                },
-                rigidbody: RigidBody::Fixed,
-                events: ActiveEvents::all(),
+            sprite: SpriteBundle {
+                transform: in_world.transform,
+                texture: assets.word_tag_sprites[&in_world.word_id].clone(),
+                ..default()
+            },
+            rigidbody: RigidBody::Fixed,
+            events: ActiveEvents::all(),
+            collider: Collider::cuboid(32.0, 8.0),
+            name: Name::from(format!("{} Tag", in_world.word_id.forms().basic)),
             ..default()
         }
-    }
-}
-
-pub fn init_word_tags(
-    mut new_tags: Query<
-        (&WordTag, &Transform, &mut Handle<Image>, &mut Collider, &mut Name),
-        Changed<WordTag>
-    >, 
-    words: Res<Words>
-) {
-    for mut tag in &mut new_tags {
-        let word_data = &words.0[&tag.0.word_id];
-        *tag.2 = word_data.tag_handle.clone();
-        *tag.3 = Collider::cuboid(32.0, 8.0);
-        tag.4.set(word_data.basic.to_string() + "tag");
     }
 }
 

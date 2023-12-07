@@ -1,4 +1,4 @@
-use crate::{prelude::*, word::Words};
+use crate::prelude::*;
 
 pub struct AssetPlugin;
 
@@ -18,13 +18,13 @@ pub struct MiscAssets {
     pub horse: Handle<Image>,
     pub tileset: Handle<Image>,
     pub font: Handle<Font>,
+    pub word_tag_sprites: HashMap<WordID, Handle<Image>>,
 }
 
 fn load_assets(
     asset_server: Res<AssetServer>, 
     mut assets: ResMut<MiscAssets>,
     mut graybox: ResMut<graybox::GrayboxSettings>,
-    mut words: ResMut<Words>,
 ) {
     assets.square_pale = asset_server.load("square_pale.bmp");
     assets.square_yellow = asset_server.load("square_yellow.bmp");
@@ -36,8 +36,8 @@ fn load_assets(
     assets.font = font.clone();
     graybox.font = font.clone();
 
-    for word_data in words.0.values_mut() {
-        let tag_name = format!("{}_tag.bmp", word_data.filename);
-        word_data.tag_handle = asset_server.load(tag_name);
+    for word in ALL_WORDS {
+        let tag_name = format!("{}_tag.bmp", word.forms().filename);
+        assets.word_tag_sprites.insert(word, asset_server.load(tag_name));
     }
 }

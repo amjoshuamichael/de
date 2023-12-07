@@ -15,6 +15,7 @@ pub mod prelude {
     pub use graybox::*;
 
     pub use super::load_assets::MiscAssets;
+    pub use super::word::*;
 
     pub const CONTROL_KEY: KeyCode = 
         if cfg!(windows) { KeyCode::ControlLeft } else { KeyCode::SuperLeft };
@@ -25,17 +26,22 @@ pub mod prelude {
     }
 }
 
+use bevy::window::CompositeAlphaMode;
 use prelude::*;
 
 mod word;
 mod world;
 mod load_assets;
 mod helpers;
+mod frame_stop;
 
 use word::*;
 use load_assets::*;
 use world::*;
 pub use helpers::*;
+use frame_stop::*;
+
+use leafwing_input_playback::{input_capture::*, input_playback::*, serde::*};
 
 fn main() {
     App::new()
@@ -45,16 +51,21 @@ fn main() {
                 .set(bevy::asset::AssetPlugin {
                     mode: AssetMode::Unprocessed,
                     ..default()
+                 })
+                 .set(WindowPlugin {
+                     primary_window: Some(Window {
+                         decorations: false,
+                         ..default()
+                     }),
+                     ..default()
                  }),
             word::PlayerPlugin,
             load_assets::AssetPlugin,
             world::WorldPlugin,
-            world::dropdown::DropdownPlugin,
             RapierPhysicsPlugin::<NoUserData>::default(),
             RapierDebugRenderPlugin { enabled: false, ..default() },
-            graybox::GrayboxPlugin {
-                open_graybox_command: vec![CONTROL_KEY, KeyCode::G],
-            },
+            GrayboxPlugin::default(),
+            FrameStopPlugin,
         ))
         .add_systems(Startup, setup_camera)
         .add_systems(Update, (
@@ -65,18 +76,9 @@ fn main() {
         .enable_inspection::<Velocity>()
         .insert_resource(Msaa::Off) // disable anti-aliasing, this is a pixel game
         .insert_resource(ClearColor(Color::ANTIQUE_WHITE))
-        .insert_resource::<Words>(Words({
-            let mut map = HashMap::new();
-            map.insert(WordID::Baby, WordData::new("Baby", "baby"));
-            map.insert(WordID::Wide, WordData::new("Wide", "wide"));
-            map.insert(WordID::Tall, WordData::new("Tall", "tall"));
-            map.insert(WordID::Horse, WordData::new("Horse", "horse"));
-            map.insert(WordID::And, WordData::new("And", "and"));
-            map.insert(WordID::FlutteringUp, WordData::new("Fluttering", "fluttering_up"));
-            map.insert(WordID::FlutteringRight, WordData::new("Fluttering", "fluttering_right"));
-            map
-        }))
-
+        .add_plugins(InputCapturePlugin)
+        .insert_resource(PlaybackFilePath::new("input_records/record.ron"))
+        .insert_resource(InputModesCaptured::ENABLE_ALL)
         .run();
 }
 

@@ -2,7 +2,26 @@ use crate::{prelude::*, word::WordID};
 use bevy::window::*;
 use bevy_simple_tilemap::*;
 
-use super::{*, dropdown::{DropdownBundle, Dropdown}};
+mod dropdown;
+use dropdown::*;
+use super::*;
+
+pub struct WorldEditorPlugin;
+impl Plugin for WorldEditorPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_plugins(dropdown::DropdownPlugin)
+            .add_systems(Update, (
+                set_mouse_world_coords,
+                open_world_editor,
+                edit_world
+                    .after(setup_world_editor_gui)
+                    .run_if(in_state(WorldEditorState::On)),
+            ).chain())
+            .add_systems(OnEnter(WorldEditorState::On), setup_world_editor_gui)
+            .add_systems(OnExit(WorldEditorState::On), teardown_world_editor_gui);
+    }
+}
 
 #[derive(Default, States, Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum WorldEditorState {
@@ -156,38 +175,44 @@ pub fn edit_world(
             1 => {
                 if !mouse_button.just_pressed(MouseButton::Left) { return }
 
-                commands.spawn(WordTag::bundle(&WordTagInWorld {
-                    word_id: WordID::Baby,
-                    transform: Transform::from_translation(pos_on_map.extend(0.)),
-                })).set_parent(tilemap.3);
+                commands.spawn(WordTag::bundle(
+                    &WordTagInWorld {
+                        word_id: WordID::Baby,
+                        transform: Transform::from_translation(pos_on_map.extend(0.)),
+                    },
+                    &*assets,
+                )).set_parent(tilemap.3);
             },
             2 => {
                 if !mouse_button.just_pressed(MouseButton::Left) { return }
 
-                commands.spawn(LockZone::bundle(&(
+                commands.spawn(LockZone::bundle(
                     &LockZoneInWorld {
-                        transform: Transform::from_translation(pos_on_map.extend(0.)),
+                        transform: Transform::from_translation(pos_on_map.extend(-2.)),
                     },
                     &*assets,
-                ))).set_parent(tilemap.3);
+                )).set_parent(tilemap.3);
             },
             3 => {
                 if !mouse_button.just_pressed(MouseButton::Left) { return }
 
-                commands.spawn(PlayerSpawner::bundle(&PlayerSpawnerInWorld {
-                    transform: Transform::from_translation(pos_on_map.extend(0.)),
-                })).set_parent(tilemap.3);
+                commands.spawn(PlayerSpawner::bundle(
+                    &PlayerSpawnerInWorld {
+                        transform: Transform::from_translation(pos_on_map.extend(0.)),
+                    },
+                    &*assets,
+                )).set_parent(tilemap.3);
             }
             4 => {
                 if !mouse_button.just_pressed(MouseButton::Left) { return }
 
-                commands.spawn(Fan::bundle(&(
+                commands.spawn(Fan::bundle(
                     &FanInWorld {
                         strength: 1.8,
                         transform: Transform::from_translation(pos_on_map.extend(0.)),
                     },
                     &*assets,
-                ))).set_parent(tilemap.3);
+                )).set_parent(tilemap.3);
             }
             _ => unreachable!(),
         }

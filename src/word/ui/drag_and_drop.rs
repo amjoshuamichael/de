@@ -66,13 +66,12 @@ pub fn do_drag(
         window.cursor.icon = CursorIcon::Default;
     }
 
+    let motion_delta: Vec2 = mouse_motion.read().map(|motion| motion.delta).sum();
     for mut draggable in &mut dragging {
-        for motion in mouse_motion.read() {
-            let Val::Px(left) = &mut draggable.style.left else { return };
-            *left += motion.delta.x;
-            let Val::Px(top) = &mut draggable.style.top else { return };
-            *top += motion.delta.y;
-        }
+        let Val::Px(left) = &mut draggable.style.left else { return };
+        *left += motion_delta.x;
+        let Val::Px(top) = &mut draggable.style.top else { return };
+        *top += motion_delta.y;
     }
 }
 
@@ -84,9 +83,10 @@ pub fn do_snap(
     mut commands: Commands,
     mut ui_changes: EventWriter<SentenceUIChanged>,
 ) {
-    if !mouse.just_released(MouseButton::Left) { return };
+    if mouse.pressed(MouseButton::Left) || draggables.is_empty() { return };
 
     let inventory = inventory.single();
+
     for mut draggable in &mut draggables {
         let draggable_rect = draggable.node
             .logical_rect(draggable.global_transform)

@@ -24,23 +24,13 @@ pub struct LockZoneInWorld {
 
 impl WorldObject for LockZone {
     type Bundle = LockZoneBundle;
-    type InWorld<'a> = (&'a LockZoneInWorld, &'a MiscAssets);
+    type InWorld = LockZoneInWorld;
 
-    fn bundle<'a>(in_world: &Self::InWorld<'a>) -> Self::Bundle {
+    fn bundle(in_world: &LockZoneInWorld, assets: &MiscAssets) -> Self::Bundle {
         LockZoneBundle {
             sprite: SpriteBundle { 
-                transform: Transform {
-                    translation: Vec3 {
-                        z: -2.0,
-                        ..in_world.0.transform.translation
-                    },
-                    ..in_world.0.transform
-                },
-                texture: in_world.1.square_yellow.clone(),
-                sprite: Sprite {
-                    color: Color::rgba(1.0, 1.0, 1.0, 0.2),
-                    ..default()
-                },
+                transform: in_world.transform,
+                texture: assets.square_yellow.clone(),
                 ..default() 
             },
             collider: Collider::cuboid(8., 8.),

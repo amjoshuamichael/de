@@ -27,24 +27,20 @@ pub struct FanInWorld {
 
 impl WorldObject for Fan {
     type Bundle = FanBundle;
-    type InWorld<'a> = (&'a FanInWorld, &'a MiscAssets);
+    type InWorld = FanInWorld;
 
-    fn bundle<'a>(in_world: &Self::InWorld<'a>) -> Self::Bundle {
+    fn bundle(in_world: &FanInWorld, assets: &MiscAssets) -> Self::Bundle {
         FanBundle {
-            fan: Fan { strength: in_world.0.strength },
+            fan: Fan { strength: in_world.strength },
             sprite: SpriteBundle { 
                 transform: Transform {
                     translation: Vec3 {
                         z: -2.0,
-                        ..in_world.0.transform.translation
+                        ..in_world.transform.translation
                     },
-                    ..in_world.0.transform
+                    ..in_world.transform
                 },
-                texture: in_world.1.square_pink.clone(),
-                sprite: Sprite {
-                    color: Color::rgba(1.0, 1.0, 1.0, 0.2),
-                    ..default()
-                },
+                texture: assets.square_pink.clone(),
                 ..default() 
             },
             collider: Collider::cuboid(8., 8.),

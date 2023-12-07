@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 use bevy::ecs::query::{WorldQuery, ReadOnlyWorldQuery};
+use bevy::ecs::system::SystemParam;
 use bevy::input::mouse::MouseMotion;
 use bevy::ui::Interaction;
 
@@ -76,7 +77,7 @@ impl DraggableWordBundle {
         DraggableWordBundle {
             text: TextBundle {
                 text: Text::from_section(
-                    "",
+                    word_id.forms().basic,
                     TextStyle {
                         font: assets.font.clone(),
                         font_size: 100.0,
@@ -154,16 +155,6 @@ pub fn setup_word_ui(
     )).id();
 }
 
-pub fn words_init(
-    mut added_words: Query<(&DraggableWord, &mut Text), Added<DraggableWord>>,
-    word_map: Res<Words>,
-) {
-    for (word, mut text) in &mut added_words {
-        let word = &word_map.0[&word.word_id];
-        text.sections[0].value = word.basic.to_string();
-    }
-}
-
 #[derive(Event)]
 pub enum VocabChange {
     Added {
@@ -207,11 +198,8 @@ pub fn update_sentence_ui(
     mut structure_changes: EventReader<SentenceStructureChanged>,
     new_structures: Query<Entity, Added<SentenceStructure>>,
     word_snap_parent: Query<Entity, With<WordSnapParent>>,
-    mut commands: Commands,
-    children: Query<&Children>,
-    sentence_parts: Query<(&SentenceUIPart, Entity)>,
+    mut spawn_sys_params: SpawnSnapParams,
     docks: Query<(), &SentenceSection>,
-    assets: Res<MiscAssets>,
 ) {
     let word_snap_parent = word_snap_parent.single();
 
@@ -228,33 +216,43 @@ pub fn update_sentence_ui(
             sentence.0.root,
             (sentence.2, &sentence.0),
             word_snap_parent,
-            &mut commands,
-            &children,
-            &sentence_parts,
+            &mut spawn_sys_params,
             &mut spawned,
-            &*assets,
         );
 
-        for unused in sentence_parts.iter().filter(|part| !spawned.contains(&part.1)) {
+        for unused in spawn_sys_params.sentence_parts.iter()
+          .filter(|part| !spawned.contains(&part.1)) {
             if docks.get(unused.1).is_ok() {
-                commands.entity(unused.1).despawn_recursive();
+                spawn_sys_params.commands.entity(unused.1).despawn_recursive();
             } else {
-                commands.entity(unused.1).remove_parent();
-                commands.entity(unused.1).despawn();
+                spawn_sys_params.commands.entity(unused.1).remove_parent();
+                spawn_sys_params.commands.entity(unused.1).despawn();
             }
         }
+
     }
+
+    if !structures_to_update.is_empty() {
+        spawn_sys_params.commands.add(|world: &mut World| {
+            world.run_schedule(PostSentenceModificationActionsSet)
+        });
+    }
+}
+
+#[derive(SystemParam)]
+pub struct SpawnSnapParams<'w, 's> {
+    commands: Commands<'w, 's>,
+    sentence_parts: Query<'w, 's, (&'static SentenceUIPart, Entity)>,
+    children: Query<'w, 's, &'static Children>,
+    assets: Res<'w, MiscAssets>,
 }
 
 pub fn spawn_snap_for(
     for_phrase: PhraseID, 
     sentence: (Entity, &SentenceStructure),
     parent: Entity,
-    commands: &mut Commands,
-    children: &Query<&Children>,
-    sentence_parts: &Query<(&SentenceUIPart, Entity)>,
+    access: &mut SpawnSnapParams,
     spawned: &mut Vec<Entity>,
-    assets: &MiscAssets,
 ) -> Entity {
     // TODO: have this return EntityCommands??
     let mut find_or_spawn = |
@@ -263,32 +261,35 @@ pub fn spawn_snap_for(
         spawn_word: Option<WordID>,
     | -> Entity {
         let mut new_entity = || {
-            let entity = commands.spawn((part_id, InheritedVisibility::default(), GlobalTransform::default()))
+            let bundle = (part_id, InheritedVisibility::default(), GlobalTransform::default());
+            let entity = access.commands.spawn(bundle)
                 .set_parent(parent)
                 .id();
             if let Some(word_id) = spawn_word {
-                commands
-                    .spawn(DraggableWordBundle::for_word_snapped(word_id, assets))
+                access.commands
+                    .spawn(DraggableWordBundle::for_word_snapped(word_id, &access.assets))
                     .set_parent(entity);
             }
             spawned.push(entity);
             entity
         };
 
-        let Ok(siblings) = children.get(parent) else { return new_entity(); };
+        let Ok(siblings) = access.children.get(parent) else { return new_entity(); };
 
-        let Some(existing) = siblings.iter().find(|e| {
-                let Ok(part) = sentence_parts.get(**e) else { return false };
-                return *part.0 == part_id;
+        let Some(existing) = siblings
+            .iter()
+            .find(|e| {
+                access.sentence_parts.get(**e).map(|s| s.0) == Ok(&part_id)
             }) else { return new_entity() };
 
-        let first_child = children.get(*existing).map_or_else(|_| None, |c| c.get(0)).copied();
+        let first_child = access.children.get(*existing)
+            .map_or_else(|_| None, |c| c.get(0)).copied();
         if let Some(word_id) = spawn_word && first_child.is_none() {
-            commands
-                .spawn(DraggableWordBundle::for_word_snapped(word_id, assets))
+            access.commands
+                .spawn(DraggableWordBundle::for_word_snapped(word_id, &access.assets))
                 .set_parent(*existing);
         } else if spawn_word == None && part_id.is_slot() && let Some(child) = first_child {
-            commands.add(move |world: &mut World| {
+            access.commands.add(move |world: &mut World| {
                 if !world.entity(child).contains::<Dragging>() {
                     world.despawn(child);
                 }
@@ -306,7 +307,7 @@ pub fn spawn_snap_for(
             let noun_joint = find_or_spawn(NounJoint, parent, None);
             let noun_slot = find_or_spawn(NounSlot, noun_joint, word);
 
-            commands.entity(noun_joint).insert((
+            access.commands.entity(noun_joint).insert((
                 NodeBundle { 
                     style: Style { padding: UiRect::all(Val::Px(10.)), ..default() }, 
                     ..default() 
@@ -314,10 +315,9 @@ pub fn spawn_snap_for(
                 SentenceJoint,
             ));
 
-            spawn_snap_for(adjective, sentence, noun_joint, 
-                commands, children, sentence_parts, spawned, assets);
+            spawn_snap_for(adjective, sentence, noun_joint, access, spawned);
 
-            commands.entity(noun_slot).insert((
+            access.commands.entity(noun_slot).insert((
                 NodeBundle {
                     background_color: BackgroundColor::from(Color::DARK_GREEN.with_a(0.5)),
                     style: Style {
@@ -337,7 +337,7 @@ pub fn spawn_snap_for(
         PhraseData { kind: PhraseKind::Adjective, word, locked } => {
             let adjective_slot = find_or_spawn(AdjectiveSlot, parent, word);
 
-            commands.entity(adjective_slot).insert((
+            access.commands.entity(adjective_slot).insert((
                 NodeBundle {
                     background_color: BackgroundColor::from(Color::YELLOW.with_a(0.5)),
                     style: Style {
@@ -360,7 +360,7 @@ pub fn spawn_snap_for(
             let and_node = find_or_spawn(AndSlot, combine_joint, Some(WordID::And));
             let combine_jointr = find_or_spawn(CombineJointR, combine_joint, None);
 
-            commands.entity(combine_joint).insert((
+            access.commands.entity(combine_joint).insert((
                 NodeBundle {
                     style: Style { padding: UiRect::all(Val::Px(10.)), ..default() },
                     ..default()
@@ -368,11 +368,10 @@ pub fn spawn_snap_for(
                 SentenceJoint,
             ));
 
-            commands.entity(combine_jointl).insert(NodeBundle::default());
-            spawn_snap_for(l, sentence, combine_jointl, 
-                commands, children, sentence_parts, spawned, assets);
+            access.commands.entity(combine_jointl).insert(NodeBundle::default());
+            spawn_snap_for(l, sentence, combine_jointl, access, spawned);
 
-            commands.entity(and_node).insert((
+            access.commands.entity(and_node).insert((
                 NodeBundle {
                     background_color: BackgroundColor::from(Color::ORANGE.with_a(0.5)),
                     style: Style {
@@ -386,9 +385,8 @@ pub fn spawn_snap_for(
                 WordDock,
             )).set_parent(combine_joint);
 
-            commands.entity(combine_jointr).insert(NodeBundle::default());
-            spawn_snap_for(r, sentence, combine_jointr, 
-                commands, children, sentence_parts, spawned, assets);
+            access.commands.entity(combine_jointr).insert(NodeBundle::default());
+            spawn_snap_for(r, sentence, combine_jointr, access, spawned);
 
             combine_joint
         },
@@ -422,7 +420,7 @@ pub fn indicate_sentence_section_locks(
     }
 }
 
-pub fn sentence_section_docks(
+pub fn dock_words_in_sentence_sections(
     docks: Query<&SentenceSection>,
     words: Query<&DraggableWord>,
     mut sentences: Query<(Entity, &mut SentenceStructure)>,

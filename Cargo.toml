@@ -1,4 +1,4 @@
-workspace = { members = ["crates/graybox"] }
+workspace = { members = [ "crates/blackbox","crates/graybox", "crates/l"] }
 
 [package]
 name = "de"
@@ -14,3 +14,6 @@ serde = "*"
 slotmap = "1.0.6"
 
 graybox = { path = "crates/graybox" }
+#blackbox = { path = "crates/blackbox" }
+
+leafwing_input_playback = { path = "../leafwing_input_playback/" }

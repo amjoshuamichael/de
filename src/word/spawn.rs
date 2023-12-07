@@ -59,7 +59,7 @@ pub fn remake_player_character(
 
                 for child in children.iter_descendants(sentence.1) {
                     if !used_existing_entities.contains(&child) {
-                        commands.entity(sentence.1).despawn();
+                        commands.entity(child).despawn();
                     }
                 }
 

@@ -8,7 +8,7 @@ pub mod movement;
 pub mod spawn;
 pub mod apply_words;
 
-use bevy::utils::HashSet;
+use bevy::{utils::HashSet, ecs::schedule::ScheduleLabel};
 pub use movement::*;
 
 use self::{ui::*, spawn::SentenceSpawn};
@@ -17,6 +17,9 @@ pub struct PlayerPlugin;
 
 #[derive(SystemSet, Hash, PartialEq, Eq, Debug, Clone)]
 pub struct SentenceModificationRoutine;
+
+#[derive(ScheduleLabel, Hash, PartialEq, Eq, Debug, Clone)]
+pub struct PostSentenceModificationActionsSet;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
@@ -28,21 +31,19 @@ impl Plugin for PlayerPlugin {
             .add_event::<VocabChange>()
             .add_systems(Update, (
                 (
-                    ui::do_unsnap,
-                    ui::do_drag,
-                    ui::do_snap,
-                    ui::sentence_section_docks.run_if(on_event::<SentenceUIChanged>()),
+                    (ui::do_unsnap, ui::do_drag, ui::do_snap),
+                    ui::dock_words_in_sentence_sections
+                        .run_if(on_event::<SentenceUIChanged>()),
                     ui::update_sentence_ui,
-                    ui::indicate_sentence_section_locks,
-                    ui::reorder_sentence_ui,
                     spawn::remake_player_character,
                     spawn::disable_physics_for_invalid_sentence_structures,
                 ).in_set(SentenceModificationRoutine).chain(),
-                (
-                    ui::update_vocabulary,
-                    ui::words_init,
-                ).chain(),
+                ui::update_vocabulary,
             ))
+            .add_systems(
+                PostSentenceModificationActionsSet, 
+                (ui::indicate_sentence_section_locks, ui::reorder_sentence_ui),
+            )
             .add_systems(FixedUpdate, (
                 apply_words::apply_wide,
                 apply_words::apply_tall,
@@ -65,6 +66,9 @@ pub struct Vocabulary {
     words: HashSet<WordID>,
 }
 
+pub const ALL_WORDS: [WordID; 7] = [WordID::Baby, WordID::Wide, WordID::Tall, WordID::Horse,
+    WordID::And, WordID::FlutteringUp, WordID::FlutteringRight];
+
 #[derive(Default, Copy, Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub enum WordID {
     #[default]
@@ -77,21 +81,30 @@ pub enum WordID {
     FlutteringRight,
 }
 
+impl WordID {
+    pub fn forms(self) -> WordForms {
+        fn word(basic: &'static str, filename: &'static str) -> WordForms {
+            WordForms { basic, filename, tag_handle: Handle::default() }
+        }
+
+        match self {
+            WordID::Baby => word("Baby", "baby"),
+            WordID::Wide => word("Wide", "wide"),
+            WordID::Tall => word("Tall", "tall"),
+            WordID::Horse => word("Horse", "horse"),
+            WordID::And => word("And", "and"),
+            WordID::FlutteringUp => word("Fluttering", "fluttering_up"),
+            WordID::FlutteringRight => word("Fluttering", "fluttering_right"),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
-pub struct WordData {
+pub struct WordForms {
     pub basic: &'static str,
     pub filename: &'static str,
     pub tag_handle: Handle<Image>,
 }
-
-impl WordData {
-    pub fn new(basic: &'static str, filename: &'static str) -> Self {
-        WordData { basic, filename, tag_handle: Handle::default() }
-    }
-}
-
-#[derive(Resource, Default)]
-pub struct Words(pub HashMap<WordID, WordData>);
 
 new_key_type! { pub struct PhraseID; }
 

@@ -4858,11 +4858,11 @@
             Ground,
             Ground,
             Ground,
-            Air,
-            Air,
-            Air,
-            Air,
-            Air,
+            Ground,
+            Ground,
+            Ground,
+            Ground,
+            Ground,
             Air,
             Air,
             Air,
@@ -10204,7 +10204,7 @@
     player_spanwers: [
         (
             transform: (
-                translation: (772.67993, 795.13684, 0.0),
+                translation: (1062.6799, 795.13684, 0.0),
                 rotation: (0.0, 0.0, 0.0, 1.0),
                 scale: (1.0, 1.0, 1.0),
             ),
@@ -10214,7 +10214,7 @@
         (
             word_id: Tall,
             transform: (
-                translation: (973.29486, 684.75824, 0.0),
+                translation: (1116.2949, 738.75824, 0.0),
                 rotation: (0.0, 0.0, 0.0, 1.0),
                 scale: (1.0, 1.0, 1.0),
             ),

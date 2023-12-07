@@ -10,7 +10,7 @@ pub struct QWordObject {
 
 pub fn apply_wide(
     mut word_objects: Query<(QWordObject, &mut Collider, &GlobalTransform, &mut Transform)>,
-    all_transforms: Query<&GlobalTransform>,
+    transforms: Query<&GlobalTransform>,
     phys_context: Res<RapierContext>,
 ) {
     const WIDEN_SPEED: f32 = 0.15;
@@ -24,8 +24,7 @@ pub fn apply_wide(
         let old_scale = object.3.scale.x;
         let scale_diff = 1. + (max_width - old_scale) * WIDEN_SPEED;
 
-        let current_collider_rect = object.1.as_typed_shape();
-        let widened_shape = current_collider_rect
+        let widened_shape = object.1.as_typed_shape()
             .raw_scale_by(Vec2::new(scale_diff, 0.99), 0)
             .unwrap();
         let widened_col = Collider::from(widened_shape);
@@ -36,15 +35,15 @@ pub fn apply_wide(
 
         phys_context.intersections_with_shape(
             translation.xy(),
-            rotation.x, // TODO: get rotation here
+            rotation.z,
             &widened_col,
             QueryFilter {
                 exclude_collider: Some(object.0.entity),
                 ..default()
             },
             |colliding_shape| {
-                let col_pos = all_transforms.get(colliding_shape).unwrap().translation().xy();
-                pushback_vector += translation.xy() - col_pos;
+                let col_pos = transforms.get(colliding_shape).unwrap().translation();
+                pushback_vector += translation.xy() - col_pos.xy();
                 true
             },
         );
@@ -74,8 +73,7 @@ pub fn apply_tall(
         let old_scale = object.3.scale.y;
         let scale_diff = 1. + (max_height - old_scale) * HEIGHTEN_SPEED;
 
-        let current_collider_rect = object.1.as_typed_shape();
-        let heightened_shape = current_collider_rect
+        let heightened_shape = object.1.as_typed_shape()
             .raw_scale_by(Vec2::new(0.99, scale_diff), 0)
             .unwrap();
         let heightened_col = Collider::from(heightened_shape);
@@ -86,7 +84,7 @@ pub fn apply_tall(
 
         phys_context.intersections_with_shape(
             translation.xy(),
-            rotation.x, // TODO: get rotation here
+            rotation.z,
             &heightened_col,
             QueryFilter {
                 exclude_collider: Some(object.0.entity),
@@ -120,7 +118,7 @@ pub fn apply_fluttering(
         for ancestor in parents.iter_ancestors(flutter.entity) {
             if let Ok(mut velocity) = velocities.get_mut(ancestor) {
                 let dir_vector = match direction {
-                    FlutteringDirection::Up => Vec2::new(0., 2.),
+                    FlutteringDirection::Up => Vec2::new(0., 4.),
                     FlutteringDirection::Down => todo!(),
                     FlutteringDirection::Left => todo!(),
                     FlutteringDirection::Right => Vec2::new(8., 0.),

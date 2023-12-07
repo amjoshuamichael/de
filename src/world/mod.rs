@@ -1,21 +1,18 @@
+const LOAD_AT_START: &'static str = 
+//"jungle.world.ron";
+"jungle2.world.ron";
+
 use crate::{prelude::*, word::WordID};
 use bevy::{asset::{*, io::*}, app::AppExit, window::exit_on_all_closed};
 use bevy_simple_tilemap::prelude::*;
 use ron::ser::PrettyConfig;
 
-use self::editor::WorldEditorState;
+use self::editor::{WorldEditorState, WorldEditorPlugin};
 
 mod editor;
-pub mod dropdown;
-mod word_tag;
-mod lock_zone;
-mod player_spawner;
-mod fan;
+mod objects;
 
-pub use word_tag::*;
-pub use lock_zone::*;
-pub use player_spawner::*;
-pub use fan::*;
+use objects::*;
 
 pub struct WorldPlugin;
 
@@ -29,22 +26,13 @@ impl Plugin for WorldPlugin {
             ))
             .add_state::<WorldEditorState>()
             .add_systems(Update, (
-                editor::set_mouse_world_coords,
-                editor::open_world_editor,
-                editor::edit_world
-                    .after(editor::setup_world_editor_gui)
-                    .run_if(in_state(WorldEditorState::On)),
-            ).chain())
-            .add_systems(Update, (
-                word_tag::init_word_tags,
                 word_tag::word_tags_update,
                 lock_zone::lock_zone_update,
                 player_spawner::player_spawner_update,
-                fan::fans_update.before(crate::word::SentenceModificationRoutine),
+                fan::fans_update.before(SentenceModificationRoutine),
             ))
-            .add_systems(OnEnter(WorldEditorState::On), editor::setup_world_editor_gui)
-            .add_systems(OnExit(WorldEditorState::On), editor::teardown_world_editor_gui)
             .add_plugins(SimpleTileMapPlugin)
+            .add_plugins(WorldEditorPlugin)
             .init_asset::<DeWorld>()
             .init_resource::<editor::MouseWorldCoords>()
             .register_asset_loader(WorldLoader);
@@ -131,7 +119,7 @@ fn setup_tilemap(
         ..Default::default()
     };
 
-    let world = asset_server.load("jungle.world.ron");
+    let world = asset_server.load(LOAD_AT_START);
 
     commands.spawn((
         tilemap_bundle, 
@@ -218,16 +206,16 @@ fn load_world(
     }
 
     for word_tag in &world.word_tags {
-        commands.spawn(WordTag::bundle(word_tag)).set_parent(tilemap.entity);
+        commands.spawn(WordTag::bundle(word_tag, &assets)).set_parent(tilemap.entity);
     }
     for lock_zone in &world.lock_zones {
-        commands.spawn(LockZone::bundle(&(&lock_zone, assets))).set_parent(tilemap.entity);
+        commands.spawn(LockZone::bundle(lock_zone, &assets)).set_parent(tilemap.entity);
     }
     for spawner in &world.player_spanwers {
-        commands.spawn(PlayerSpawner::bundle(&spawner)).set_parent(tilemap.entity);
+        commands.spawn(PlayerSpawner::bundle(&spawner, &assets)).set_parent(tilemap.entity);
     }
     for fan in &world.fans {
-        commands.spawn(Fan::bundle(&(&fan, assets))).set_parent(tilemap.entity);
+        commands.spawn(Fan::bundle(fan, &assets)).set_parent(tilemap.entity);
     }
 }
 
@@ -342,11 +330,4 @@ fn save_world(
             .expect("unable to serialize world");
         write(file_path, &*serialized_world).expect("unable to write {file_path:?}");
     }
-}
-
-pub trait WorldObject: Component {
-    type Bundle: Bundle;
-    type InWorld<'a>;
-
-    fn bundle<'a>(in_world: &Self::InWorld<'a>) -> Self::Bundle;
 }
