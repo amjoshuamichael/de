@@ -99,8 +99,10 @@ impl AssetLoader for WorldLoader {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[repr(u32)]
 pub enum TileIndex {
+    #[serde(rename = "G")]
     Ground = 0,
     #[default]
+    #[serde(rename = "A")]
     Air = u32::MAX,
 }
 

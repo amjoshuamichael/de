@@ -16,4 +16,4 @@ slotmap = "1.0.6"
 graybox = { path = "crates/graybox" }
 #blackbox = { path = "crates/blackbox" }
 
-leafwing_input_playback = { path = "../leafwing_input_playback/" }
+leafwing_input_playback = { git = "https://github.com/amjoshuamichael/leafwing_input_playback.git" }
