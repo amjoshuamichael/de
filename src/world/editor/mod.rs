@@ -91,11 +91,13 @@ pub struct PlacementDropdown;
 
 const EDITOR_ZOOM: f32 = 2.0;
 pub fn setup_world_editor_gui(
-    mut camera: Query<&mut OrthographicProjection, With<Camera>>,
+    mut camera: Query<(&mut OrthographicProjection, &mut GameCamera), With<Camera>>,
     mut commands: Commands,
 ) {
-    camera.single_mut().scale *= EDITOR_ZOOM;
-
+    let mut camera = camera.single_mut();
+    camera.1.move_mode = CameraMoveMode::Free;
+    camera.0.scale *= EDITOR_ZOOM;
+    
     let ui_parent = commands.spawn((
         WorldEditorUIParent, 
         NodeBundle {
@@ -113,7 +115,7 @@ pub fn setup_world_editor_gui(
         dropdown: Dropdown {
             choices: vec!["World", "Word Tags", "Lock Zones", "Player Spawner", "Fan", 
                 "Multiselect", "Move Player", "Snap and Visualize Objects Movement", 
-                "Death Zones"],
+                "Death Zones", "Camera Zones"],
             chosen: 0,
         },
         marker: PlacementDropdown,
@@ -122,11 +124,13 @@ pub fn setup_world_editor_gui(
 }
 
 pub fn teardown_world_editor_gui(
-    mut camera: Query<&mut OrthographicProjection, With<Camera>>,
+    mut camera: Query<(&mut OrthographicProjection, &mut GameCamera), With<Camera>>,
     mut commands: Commands,
     ui_parent: Query<Entity, With<WorldEditorUIParent>>,
 ) {
-    camera.single_mut().scale /= EDITOR_ZOOM;
+    let mut camera = camera.single_mut();
+    camera.1.move_mode = CameraMoveMode::SnapToBounds;
+    camera.0.scale /= EDITOR_ZOOM;
 
     let ui_parent = ui_parent.single();
     commands.entity(ui_parent).despawn_recursive();
@@ -250,7 +254,9 @@ pub fn edit_world(
                 commands.spawn(Fan::bundle(
                     &FanInWorld {
                         strength: 1.8,
-                        transform: Transform::from_translation(pos_on_map.extend(0.)),
+                        translation: pos_on_map,
+                        rotation: 0.,
+                        scale: default(),
                     },
                     &*assets,
                 )).set_parent(tilemap.3);
@@ -326,14 +332,22 @@ pub fn edit_world(
                        transformation.translation = 
                            (transformation.translation / 8.).round() * 8.;
                        transformation.scale = transformation.scale.round();
-                       transformation.rotation.z = 
-                           (transformation.rotation.z * (PI / 2.)).round() * (PI / 2.);
+                       //transformation.rotation.z = 
+                       //    (transformation.rotation.z * (PI / 2.)).round() * (PI / 2.);
                    }
                 }
             },
             8 if mouse_button.just_pressed(MB::Left) => {
                 commands.spawn(DeathZone::bundle(
                     &DeathZoneInWorld {
+                        transform: Transform::from_translation(pos_on_map.extend(0.)),
+                    },
+                    &*assets,
+                )).set_parent(tilemap.3);
+            }
+            9 if mouse_button.just_pressed(MB::Left) => {
+                commands.spawn(CameraZone::bundle(
+                    &CameraZoneInWorld {
                         transform: Transform::from_translation(pos_on_map.extend(0.)),
                     },
                     &*assets,

@@ -157,7 +157,7 @@ fn open_ui(mut commands: Commands, mut next_state: ResMut<NextState<GrayboxState
     let parent_node = commands.spawn((
         NodeBundle {
             style: Style {
-                justify_content: JustifyContent::FlexEnd,
+                justify_content: JustifyContent::FlexStart,
                 width: Val::Percent(100.),
                 height: Val::Percent(100.),
                 ..default()
@@ -170,7 +170,7 @@ fn open_ui(mut commands: Commands, mut next_state: ResMut<NextState<GrayboxState
     let sidebar = commands.spawn((
         NodeBundle {
             style: Style {
-                flex_direction: FlexDirection::Column,
+                flex_direction: FlexDirection::ColumnReverse,
                 width: Val::Percent(30.),
                 height: Val::Percent(100.),
                 justify_content: JustifyContent::Stretch,
@@ -188,6 +188,7 @@ fn open_ui(mut commands: Commands, mut next_state: ResMut<NextState<GrayboxState
                 flex_direction: FlexDirection::Column,
                 margin: UiRect::all(Val::Px(10.0)),
                 flex_grow: 2.0,
+                overflow: Overflow::clip_y(),
                 ..default()
             },
             background_color: Color::DARK_GRAY.into(),
@@ -249,11 +250,9 @@ fn entity_panel_ui(
         (&EntityNameButton, &Interaction, &mut BackgroundColor), 
         Changed<Interaction>
     >,
-    sidebar: Query<Entity, With<Sidebar>>,
+    sidebar: Query<(Entity, &Children), With<Sidebar>>,
     mut commands: Commands,
 ) {
-    let sidebar = sidebar.single();
-
     for mut entity_panel in &mut entity_panels {
         if *entity_panel.1 == Interaction::Hovered {
             *entity_panel.2 = Color::GRAY.into();
@@ -262,41 +261,44 @@ fn entity_panel_ui(
         }
 
         if *entity_panel.1 == Interaction::Pressed {
-            let inspector = commands.spawn((
-                NodeBundle {
-                    style: Style {
-                        flex_grow: 3.0,
-                        flex_direction: FlexDirection::Column,
-                        margin: UiRect::all(Val::Px(10.)),
-                        ..default()
-                    },
-                    background_color: Color::DARK_GRAY.into(),
-                    ..default()
-                },
-                Inspector {
-                    on: entity_panel.0.on,
-                },
-            )).set_parent(sidebar).id();
-            
-
-            commands.spawn((
-                NodeBundle {
-                    style: Style {
-                        width: Val::Px(20.),
-                        height: Val::Px(20.),
-                        position_type: PositionType::Absolute,
-                        top: Val::Px(0.),
-                        right: Val::Px(0.),
-                        ..default()
-                    },
-                    background_color: Color::RED.into(),
-                    ..default()
-                },
-                InspectorCloseButton,
-                Interaction::None,
-            )).set_parent(inspector);
+            let sidebar = sidebar.single();
+            spawn_inspector(&mut commands, entity_panel.0.on, sidebar.0); 
         }
     }
+}
+
+fn spawn_inspector(commands: &mut Commands, on: Entity, sidebar: Entity) {
+    let inspector = commands.spawn((
+        NodeBundle {
+            style: Style {
+                flex_grow: 3.0,
+                flex_direction: FlexDirection::Column,
+                margin: UiRect::all(Val::Px(10.)),
+                ..default()
+            },
+            background_color: Color::DARK_GRAY.into(),
+            ..default()
+        },
+        Inspector { on, },
+    )).set_parent(sidebar).id();
+    
+
+    commands.spawn((
+        NodeBundle {
+            style: Style {
+                width: Val::Px(20.),
+                height: Val::Px(20.),
+                position_type: PositionType::Absolute,
+                top: Val::Px(0.),
+                right: Val::Px(0.),
+                ..default()
+            },
+            background_color: Color::RED.into(),
+            ..default()
+        },
+        InspectorCloseButton,
+        Interaction::None,
+    )).set_parent(inspector);
 }
 
 fn inspector_ui(

@@ -11,13 +11,7 @@ pub fn spawn_player(
 ) {
     let player = commands.spawn((
         Player,
-        SpatialBundle {
-            transform: Transform {
-                translation: Vec3::new(50.0, 50.0, 0.0) * 16.0,
-                ..default()
-            },
-            ..default()
-        },
+        SpatialBundle::default(),
         RigidBody::default(),
         AdditionalMassProperties::Mass(10.0),
         ReadMassProperties::default(),
@@ -65,6 +59,7 @@ pub fn do_movement(
     colliders: Query<(&GlobalTransform, &Collider)>,
     children: Query<&Children>,
     sensors: Query<&Sensor>,
+    time: Res<Time>,
     phys_context: Res<RapierContext>,
 ) {
     const MAX_X_SPEED: f32 = 32000.0;
@@ -98,7 +93,7 @@ pub fn do_movement(
             collider.1.as_typed_shape().raw_scale_by(Vec2::splat(0.99), 2).unwrap();
 
         let intersection = phys_context.intersection_with_shape(
-            translation.xy() + Vec2::new(newvel, 0.).normalize_or_zero() * 0.1 * scale.x,
+            translation.xy() + Vec2::new(goal_speed, 0.) * scale.x * time.delta_seconds(),
             rotation.z,
             &Collider::from(shrunk_collider),
             QueryFilter {

@@ -32,6 +32,7 @@ impl Plugin for WorldPlugin {
                 player_spawner::update,
                 fan::update.before(SentenceModificationRoutine),
                 death_zone::update,
+                camera_zone::update,
             ))
             .add_plugins(SimpleTileMapPlugin)
             .add_plugins(WorldEditorPlugin)
@@ -51,6 +52,7 @@ pub struct DeWorld {
     #[serde(default)] lock_zones: Vec<LockZoneInWorld>,
     #[serde(default)] fans: Vec<FanInWorld>,
     #[serde(default)] death_zones: Vec<DeathZoneInWorld>,
+    #[serde(default)] camera_zones: Vec<CameraZoneInWorld>,
 }
 
 impl Default for DeWorld {
@@ -62,6 +64,7 @@ impl Default for DeWorld {
             lock_zones: default(),
             fans: default(),
             death_zones: default(),
+            camera_zones: default(),
         }
     }
 }
@@ -224,6 +227,9 @@ fn load_world(
     for death_zone in &world.death_zones {
         commands.spawn(DeathZone::bundle(death_zone, &assets)).set_parent(tilemap.entity);
     }
+    for camera_zone in &world.camera_zones {
+        commands.spawn(CameraZone::bundle(camera_zone, &assets)).set_parent(tilemap.entity);
+    }
 }
 
 #[derive(Default, Bundle)]
@@ -295,6 +301,7 @@ fn save_world(
     spawners: Query<&Transform, With<PlayerSpawner>>,
     fans: Query<(&Fan, &Transform)>,
     death_zones: Query<&Transform, With<DeathZone>>,
+    camera_zones: Query<&Transform, With<CameraZone>>,
 ) {
     use std::path::*;
     use std::fs::*;
@@ -322,11 +329,17 @@ fn save_world(
             } else if let Ok(fan) = fans.get(child) {
                 world_to_save.fans.push(FanInWorld {
                     strength: fan.0.strength,
-                    transform: *fan.1,
+                    translation: fan.1.translation.xy(),
+                    rotation: fan.1.rotation.to_euler(EulerRot::XYZ).2,
+                    scale: fan.1.scale.xy(),
                 });
             } else if let Ok(death_zone) = death_zones.get(child) {
                 world_to_save.death_zones.push(DeathZoneInWorld {
                     transform: *death_zone,
+                });
+            } else if let Ok(camera_zone) = camera_zones.get(child) {
+                world_to_save.camera_zones.push(CameraZoneInWorld {
+                    transform: *camera_zone,
                 });
             }
 

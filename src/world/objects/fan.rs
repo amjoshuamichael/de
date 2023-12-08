@@ -21,8 +21,10 @@ pub struct FanBundle {
 
 #[derive(Debug, TypePath, Serialize, Deserialize)]
 pub struct FanInWorld {
-    pub strength: f32,
-    pub transform: Transform,
+    #[serde(default)] pub strength: f32,
+    #[serde(default)] pub translation: Vec2,
+    #[serde(default)] pub scale: Vec2,
+    #[serde(default)] pub rotation: f32,
 }
 
 impl WorldObject for Fan {
@@ -33,12 +35,18 @@ impl WorldObject for Fan {
         FanBundle {
             fan: Fan { strength: in_world.strength },
             sprite: SpriteBundle { 
-                transform: Transform {
-                    translation: Vec3 {
-                        z: -2.0,
-                        ..in_world.transform.translation
-                    },
-                    ..in_world.transform
+                transform: {
+                    let mut transform = Transform {
+                        translation: Vec3 {
+                            x: in_world.translation.x,
+                            y: in_world.translation.y,
+                            z: -2.0,
+                        },
+                        scale: in_world.scale.extend(1.),
+                        ..default()
+                    };
+                    transform.rotate_z(in_world.rotation);
+                    transform
                 },
                 texture: assets.square_pink.clone(),
                 ..default() 
