@@ -1,0 +1,13 @@
+(
+    tiles: (
+        cols: 0,
+        data: [],
+        order: RowMajor,
+    ),
+    player_spanwers: [],
+    word_tags: [],
+    lock_zones: [],
+    fans: [],
+    death_zones: [],
+    camera_zones: [],
+)

@@ -16,7 +16,7 @@ pub struct ModificationEvents(pub Vec<Modification>);
 #[derive(Default, Resource)]
 pub struct SelectedEditable(pub Option<Entity>);
 
-pub fn editable_selection(
+pub fn find_selected_editable(
     editables: Query<(&Interaction, &Editable, Entity)>,
     mut selected: ResMut<SelectedEditable>,
     mouse_button_input: Res<Input<MouseButton>>,
@@ -96,7 +96,7 @@ pub struct EditableQuery<T: Component> {
     parent: &'static Parent,
 }
 
-pub fn sliders(
+pub fn slider_submit_via_drag(
     sliders: Query<EditableQuery<EditableFloat>>,
     selected_editable: Res<SelectedEditable>,
     submenus: Query<&Parent, With<InspectorSubmenu>>,
@@ -135,11 +135,11 @@ pub fn sliders(
     modifications.0.push(Modification {
         set: new_val,
         editor_in_submenu: **slider.parent,
-        component_id: inspector_section.on,
+        component_id: inspector_section.component_id,
     });
 }
 
-pub fn sliders_text(
+pub fn slider_submit_via_text(
     mut sliders: Query<(&mut Editable, &mut TextInput, &Parent), With<EditableFloat>>,
     submenus: Query<&Parent, With<InspectorSubmenu>>,
     inspector_sections: Query<&InspectorSection>,
@@ -163,8 +163,10 @@ pub fn sliders_text(
             modifications.0.push(Modification {
                 set: new_val,
                 editor_in_submenu: **slider.2,
-                component_id: inspector_section.on,
+                component_id: inspector_section.component_id,
             });
         }
     }
 }
+
+

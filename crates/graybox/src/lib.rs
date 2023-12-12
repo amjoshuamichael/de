@@ -5,16 +5,15 @@
 // - allow for types to define their own modifier functions (e.g. "snap"
 // for Transform), and show them in the menu.
 
-use apply::PathKind;
 use bevy::{prelude::*, ecs::component::ComponentId};
 
 mod timed_interaction;
 mod ext;
-mod apply;
 mod interfaces;
 
-pub use ext::GrayboxExt;
-use interfaces::{sliders, ModificationEvents, editable_selection, selection_indicator, SelectedEditable, text_input, sliders_text};
+pub use ext::{GrayboxExt, GrayboxFunctions};
+
+use interfaces::{slider_submit_via_drag, ModificationEvents, find_selected_editable, selection_indicator, SelectedEditable, text_input, slider_submit_via_text};
 
 pub struct GrayboxPlugin {
     pub open_graybox_command: Vec<KeyCode>,
@@ -36,10 +35,15 @@ pub enum GrayboxState {
 
 #[derive(SystemSet, Hash, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum UIUpdateStages {
+    // Hover effects, and click effects, and `TimedInteraction`s
     Interactivity,
-    ExamineInterfaces,
+    // Checks for user interactions and issues `Modification`s.
+    InterfaceSubmits,
+    // Updates the data in the components.
     UpdateData,
+    // Updates data changes in interfaces.
     UpdateInterfaces,
+    // Closes the menu, if nescessary.
     CloseMenus,
 }
 
@@ -57,7 +61,7 @@ impl Plugin for GrayboxPlugin {
                 Update,
                 (
                     UIUpdateStages::Interactivity,
-                    UIUpdateStages::ExamineInterfaces,
+                    UIUpdateStages::InterfaceSubmits,
                     UIUpdateStages::UpdateData,
                     UIUpdateStages::UpdateInterfaces,
                     UIUpdateStages::CloseMenus,
@@ -72,11 +76,12 @@ impl Plugin for GrayboxPlugin {
                     (
                         entity_panel_ui,
                         timed_interaction::do_timed_interactions,
+                        selection_indicator,
                     ).in_set(UIUpdateStages::Interactivity),
                     (
-                        editable_selection,
-                        (selection_indicator, sliders, sliders_text),
-                    ).chain().in_set(UIUpdateStages::ExamineInterfaces),
+                        find_selected_editable,
+                        (slider_submit_via_drag, slider_submit_via_text),
+                    ).chain().in_set(UIUpdateStages::InterfaceSubmits),
                     text_input.in_set(UIUpdateStages::UpdateInterfaces),
                     inspector_ui.in_set(UIUpdateStages::CloseMenus),
                 )
@@ -132,8 +137,18 @@ pub struct Editable {
 }
 
 #[derive(Component)]
+pub struct FunctionButton {
+    function_index: usize,
+}
+
+#[derive(Component)]
 pub struct InspectorSection {
-    on: ComponentId,
+    component_id: ComponentId,
+}
+
+#[derive(Debug)]
+pub enum PathKind {
+    Field(String), 
 }
 
 #[derive(Debug, Component)]
@@ -148,6 +163,7 @@ pub type NoGboxFilter = (
     Without<Inspector>,
     Without<EntityNameButton>,
     Without<Sidebar>,
+    Without<FunctionButton>,
     Without<InspectorSection>,
     Without<Editable>,
     Without<InspectorSubmenu>,
@@ -206,7 +222,7 @@ fn close_ui(parent_node: Query<Entity, With<UIParentNode>>, mut commands: Comman
 
 fn update_entity_panel(
     mut commands: Commands, 
-    entities: Query<(Entity, Option<&Name>), NoGboxFilter>,
+    entities: Query<(Entity, Option<&Name>), (NoGboxFilter, With<Name>)>,
     entity_panel: Query<Entity, With<EntityPanel>>,
     settings: Res<GrayboxSettings>,
 ) {

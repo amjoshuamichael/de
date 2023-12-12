@@ -6,7 +6,7 @@
 #![feature(exact_size_is_empty)]
 
 // put a use crate::prelude::* at the top of every file
-pub mod prelude {
+pub(crate) mod prelude {
     #![allow(ambiguous_glob_reexports)]
     pub use bevy::{prelude::*, utils::{HashMap, HashSet}, 
         ecs::{query::WorldQuery, system::SystemParam}};
@@ -14,6 +14,7 @@ pub mod prelude {
     pub use slotmap::*;
     pub use serde::*;
     pub use graybox::*;
+    pub use grid::*;
 
     pub use super::load_assets::MiscAssets;
     pub use super::word::*;
@@ -35,6 +36,12 @@ pub mod prelude {
     use std::ops::*;
     pub fn avg<T: Add<Output = T> + Div<f32, Output = T>>(a: T, b: T) -> T {
         (a + b) / 2.
+    }
+
+    pub fn empty_grid<T: Default>() -> Grid<T> { Grid::new(0, 0) }
+
+    pub fn grid_size<T>(grid: &Grid<T>) -> Vec2 {
+        Vec2::new(grid.rows() as f32, grid.cols() as f32)
     }
 }
 

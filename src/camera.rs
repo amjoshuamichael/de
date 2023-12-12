@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, world::{LoadedLevel, helpers::level_is_in_position}};
 
 pub struct CameraPlugin;
 
@@ -40,19 +40,33 @@ fn setup_camera(mut commands: Commands) {
 }
 
 fn camera_update(
-    mut camera: Query<(&mut Transform, &OrthographicProjection, &GameCamera)>,
+    mut camera: Query<(&mut Transform, &OrthographicProjection, &mut GameCamera)>,
     player: Query<&Transform, (With<Player>, Without<OrthographicProjection>)>,
+    levels: Query<(&LoadedLevel, &Transform), Without<GameCamera>>,
 ) {
     const CAMERA_SPEED: f32 = 0.1;
     let player = player.single();
     let mut camera = camera.single_mut();
-    camera.0.translation = camera.0.translation.lerp(player.translation, CAMERA_SPEED);
 
-    if camera.2.move_mode == CameraMoveMode::SnapToBounds {
-        let campos = &mut camera.0.translation;
-        campos.x = campos.x.max(camera.2.bounds.min.x - camera.1.area.min.x);
-        campos.x = campos.x.min(camera.2.bounds.max.x - camera.1.area.max.x);
-        campos.y = campos.y.max(camera.2.bounds.min.y - camera.1.area.min.y);
-        campos.y = campos.y.min(camera.2.bounds.max.y - camera.1.area.max.y);
+    for level in &levels {
+        if let Some(bounds) = level_is_in_position(level, player.translation.xy()) {
+            camera.2.bounds = bounds;
+        }
     }
+
+    let target = match camera.2.move_mode {
+        CameraMoveMode::SnapToBounds => {
+            let mut target = player.translation.xy();
+            target.x = target.x.max(camera.2.bounds.min.x - camera.1.area.min.x);
+            target.x = target.x.min(camera.2.bounds.max.x - camera.1.area.max.x);
+            target.y = target.y.max(camera.2.bounds.min.y - camera.1.area.min.y);
+            target.y = target.y.min(camera.2.bounds.max.y - camera.1.area.max.y);
+            target
+        },
+        CameraMoveMode::Free => {
+            player.translation.xy()
+        }
+    };
+
+    camera.0.translation = camera.0.translation.lerp(target.extend(0.), CAMERA_SPEED);
 }

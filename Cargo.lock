@@ -557,6 +557,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_ecs_tilemap"
+version = "0.12.0"
+source = "git+https://github.com/divark/bevy_ecs_tilemap?branch=0.12-fixes#658b6c12441a808c8342233a230863d3c74f780f"
+dependencies = [
+ "bevy",
+ "log",
+ "regex",
+]
+
+[[package]]
 name = "bevy_encase_derive"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -912,18 +922,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ceeeee4876eb735100420481baafc28341d95db4363977c776f8867b96b5bcdb"
 dependencies = [
  "bevy",
-]
-
-[[package]]
-name = "bevy_simple_tilemap"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9face42a519715eee58d1edeee2dfd40213b9f2f3d1e46c05cfb7cd27640b64"
-dependencies = [
- "bevy",
- "bitflags 2.4.1",
- "bytemuck",
- "rayon",
 ]
 
 [[package]]
@@ -1586,9 +1584,10 @@ name = "de"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_ecs_tilemap",
  "bevy_rapier2d",
- "bevy_simple_tilemap",
  "graybox",
+ "grid 0.12.0",
  "leafwing_input_playback",
  "ron",
  "serde",
@@ -2049,6 +2048,15 @@ name = "grid"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eec1c01eb1de97451ee0d60de7d81cf1e72aabefb021616027f3d1c3ec1c723c"
+
+[[package]]
+name = "grid"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1584ff6141ecb0340eeb8be523d027e3e1fe92ae34d9380a98ea991d65c564cc"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "guillotiere"
@@ -3104,26 +3112,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
 
 [[package]]
-name = "rayon"
-version = "1.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c27db03db7734835b3f53954b534c91069375ce6ccaa2e065441e07d9b6cdb1"
-dependencies = [
- "either",
- "rayon-core",
-]
-
-[[package]]
-name = "rayon-core"
-version = "1.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ce3fb6ad83f861aac485e76e1985cd109d9a3713802152be56c3b1f0e0658ed"
-dependencies = [
- "crossbeam-deque",
- "crossbeam-utils",
-]
-
-[[package]]
 name = "rectangle-pack"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3462,7 +3450,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c2287b6d7f721ada4cddf61ade5e760b2c6207df041cac9bfaa192897362fd3"
 dependencies = [
  "arrayvec",
- "grid",
+ "grid 0.10.0",
  "num-traits",
  "slotmap",
 ]

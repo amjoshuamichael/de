@@ -2,11 +2,6 @@ use bevy::{prelude::*, reflect::*, ecs::component::Components};
 
 use crate::*;
 
-#[derive(Debug)]
-pub enum PathKind {
-    Field(String), 
-}
-
 pub fn apply_modifications<T: Reflect + Component>(
     submenus: Query<(&InspectorSubmenu, &Parent)>,
     inspectors: Query<&Inspector>,

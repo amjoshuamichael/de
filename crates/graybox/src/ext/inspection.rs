@@ -1,55 +1,22 @@
 use bevy::{prelude::*, reflect::*, ecs::component::Components};
 
-use crate::{*, apply::*, timed_interaction::TimedInteraction};
+use super::*;
 
-pub trait GrayboxExt {
-    fn enable_inspection<T: Component + Reflect>(self: &mut Self) -> &mut App;
-}
-
-impl GrayboxExt for App {
-    fn enable_inspection<T: Component + Reflect>(self: &mut Self) -> &mut App {
-        self.add_systems(Update, (
-            show_in_inspector::<T>,
-            apply_modifications::<T>,
-            update_in_inspector::<T>,
-        ).chain().in_set(UIUpdateStages::UpdateData));
-        self
-    }
-}
-
-fn show_in_inspector<T: Component + Reflect>(
-    inspectors: Query<(&Inspector, Entity), Added<Inspector>>,
-    items: Query<&T>,
+pub fn show_in_inspector<T: Component + Reflect>(
+    sections: Query<(&InspectorSection, &Parent, Entity), Added<InspectorSection>>,
+    inspectors: Query<&Inspector>,
     components: &Components,
+    items: Query<&T>,
     mut commands: Commands,
 ) {
-    for inspector in &inspectors {
-        let Ok(item) = items.get(inspector.0.on) else { continue };
+    let Some(component_id) = components.component_id::<T>() else { return };
 
-        let section = commands.spawn((
-            NodeBundle {
-                style: Style { 
-                    width: Val::Percent(100.), 
-                    flex_direction: FlexDirection::Column,
-                    margin: UiRect::bottom(Val::Px(10.)),
-                    ..default() 
-                },
-                ..default()
-            },
-            InspectorSection {
-                on: components.component_id::<T>().unwrap(),
-            },
-        )).set_parent(inspector.1).id();
+    for section in &sections {
+        if section.0.component_id != component_id { continue }
 
-        commands.spawn(TextBundle {
-            text: Text::from_section(
-                std::any::type_name::<T>(), 
-                TextStyle::default(),
-            ),
-            ..default()
-        }).set_parent(section);
+        let Ok(item) = items.get(inspectors.get(**section.1).unwrap().on) else { continue };
 
-        spawn_ui_for(item.reflect_ref(), section, &mut commands);
+        spawn_ui_for(item.reflect_ref(), section.2, &mut commands);
     }
 }
 
@@ -150,7 +117,7 @@ fn spawn_ui_for(
     }
 }
 
-fn update_in_inspector<T: Component + Reflect>(
+pub fn update_in_inspector<T: Component + Reflect>(
     inspectors: Query<(&Inspector, &Children)>,
     inspector_sections: Query<(&InspectorSection, Entity, &Children)>,
     submenus: Query<(&InspectorSubmenu, Entity, &Children)>,
@@ -168,7 +135,7 @@ fn update_in_inspector<T: Component + Reflect>(
         
         let Some(section) = inspector.1.iter().find(|sec| {
                 let Ok(section) = inspector_sections.get(**sec) else { return false };
-                section.0.on == comp_id
+                section.0.component_id == comp_id
             }) else { continue };
 
         let (_, parent_entity, parent_children) = 

@@ -1,9 +1,9 @@
 use std::f32::consts::PI;
 
-use crate::{prelude::*, word::WordID};
+use bevy_ecs_tilemap::prelude::*;
+use crate::{prelude::*, word::WordID, world::helpers::level_is_in_position};
 use bevy::window::*;
 use bevy_rapier2d::prelude::shape_views::CuboidView;
-use bevy_simple_tilemap::*;
 
 mod dropdown;
 use dropdown::*;
@@ -20,6 +20,7 @@ impl Plugin for WorldEditorPlugin {
                 edit_world
                     .after(setup_world_editor_gui)
                     .run_if(in_state(WorldEditorState::On)),
+                refresh_tilemap.after(save_and_load::spawn_level_on_load)
             ).chain())
             .add_systems(OnEnter(WorldEditorState::On), setup_world_editor_gui)
             .add_systems(OnExit(WorldEditorState::On), teardown_world_editor_gui);
@@ -142,10 +143,11 @@ pub struct EditorState<'s> {
 }
 
 pub fn edit_world(
-    mut tilemaps: Query<(&Transform, &mut LoadedWorld, &mut TileMap, Entity)>,
+    mut levels: Query<(&Transform, &mut LoadedLevel, Entity)>,
     placement_dropdown: Query<&Dropdown, With<PlacementDropdown>>,
-    mut player: Query<&mut Transform, (With<Player>, Without<LoadedWorld>)>,
-    mut other_objects: Query<(&mut Transform, Option<&Collider>), (Without<Player>, Without<LoadedWorld>)>,
+    mut player: Query<&mut Transform, (With<Player>, Without<LoadedLevel>)>,
+    mut other_objects: Query<(&mut Transform, Option<&Collider>, &GlobalTransform), 
+                             (Without<Player>, Without<LoadedLevel>)>,
     children: Query<&Children>,
     mouse_button: Res<Input<MouseButton>>,
     keys: Res<Input<KeyCode>>,
@@ -157,9 +159,43 @@ pub fn edit_world(
 ) {
     let placement_dropdown = placement_dropdown.single();
 
-    for mut tilemap in &mut tilemaps {
+    for mut level in &mut levels {
         use KeyCode as KC;
         use MouseButton as MB;
+
+        let Some(mouse_position) = mouse_world_coords.position else { return };
+        let pos_on_map = mouse_position;
+
+        let Some(level_rect) = level_is_in_position((&*level.1, level.0), pos_on_map)
+            else { continue };
+
+        gizmos.circle_2d(pos_on_map, 10.0, Color::GREEN);
+
+        for object in children.iter_descendants(level.2) {
+           if let Ok((transformation, collider, global)) = other_objects.get_mut(object) {
+               if let Some(collider) = collider {
+                   match collider.as_typed_shape() {
+                       ColliderView::Cuboid(CuboidView { raw }) => {
+                           gizmos.rect_2d(
+                               global.translation().xy(),
+                               0.,
+                               Vec2::from(raw.half_extents) * 2.,
+                               Color::RED,
+                           );
+                       },
+                       _ => error!("could not visualize: {collider:?}"),
+                   }
+               } else {
+                   gizmos.circle_2d(
+                       global.translation().xy(),
+                       5.,
+                       Color::RED,
+                   );
+               }
+           }
+        }
+
+        gizmos.rect_2d(level_rect.center(), 0., level_rect.size(), Color::BLUE);
 
         // secondary match to handle indicators based on the dropdown
         match placement_dropdown.chosen {
@@ -171,59 +207,29 @@ pub fn edit_world(
                     Color::GREEN
                 );
             },
-            7 => {
-                for object in children.iter_descendants(tilemap.3) {
-                   if let Ok((transformation, collider)) = other_objects.get_mut(object) {
-                       if let Some(collider) = collider {
-                           match collider.as_typed_shape() {
-                               ColliderView::Cuboid(CuboidView { raw }) => {
-                                   gizmos.rect_2d(
-                                       transformation.translation.xy(),
-                                       transformation.rotation.z,
-                                       Vec2::from(raw.half_extents) * 2.,
-                                       Color::RED,
-                                   );
-                               },
-                               _ => error!("could not visualize: {collider:?}"),
-                           }
-                       } else {
-                           gizmos.circle_2d(
-                               transformation.translation.xy(),
-                               5.,
-                               Color::RED,
-                           );
-                       }
-                   }
-                }
-            }
             _ => {},
-        }
-
-        let Some(mouse_position) = mouse_world_coords.position else { return };
-        let pos_on_map = mouse_position - tilemap.0.translation.xy();
-        gizmos.circle_2d(pos_on_map, 10.0, Color::GREEN);
+            }
 
         // primary match to handle interactions
         match placement_dropdown.chosen {
             0 if !mouse_button.get_pressed().is_empty() => { // world
-                let tile_pos = (pos_on_map + 8.0) / 16.0;
+                let tile_pos = (pos_on_map - level.0.translation.xy() + 8.0) / 16.0;
                 let tile_pos = (tile_pos.x as usize, tile_pos.y as usize);
 
-                let tiles = &mut tilemap.1.tiles;
+                let tiles = &mut level.1.tiles;
 
-                if !(0..tiles.len()).contains(&tile_pos.1) ||
-                    !(0..tiles[tile_pos.1].len()).contains(&tile_pos.0) {
+                if !(0..tiles.cols()).contains(&tile_pos.1) ||
+                   !(0..tiles.rows()).contains(&tile_pos.0) {
                     continue;
                 }
-                
+
                 let tile = if mouse_button.pressed(MouseButton::Left) {
                         TileIndex::Ground
                     } else {
                         TileIndex::Air
                     };
 
-                tiles[tile_pos.1][tile_pos.0] = tile;
-                refresh_tilemap(&mut *tilemap.1, &mut *tilemap.2);
+                tiles[(tile_pos.0, tile_pos.1)] = tile;
             },
             1 if mouse_button.just_pressed(MB::Left) => {
                 commands.spawn(WordTag::bundle(
@@ -232,7 +238,7 @@ pub fn edit_world(
                         transform: Transform::from_translation(pos_on_map.extend(0.)),
                     },
                     &*assets,
-                )).set_parent(tilemap.3);
+                )).set_parent(level.2);
             },
             2 if mouse_button.just_pressed(MB::Left) => {
                 commands.spawn(LockZone::bundle(
@@ -240,7 +246,7 @@ pub fn edit_world(
                         transform: Transform::from_translation(pos_on_map.extend(-2.)),
                     },
                     &*assets,
-                )).set_parent(tilemap.3);
+                )).set_parent(level.2);
             },
             3 if mouse_button.just_pressed(MB::Left) => {
                 commands.spawn(PlayerSpawner::bundle(
@@ -248,7 +254,7 @@ pub fn edit_world(
                         transform: Transform::from_translation(pos_on_map.extend(0.)),
                     },
                     &*assets,
-                )).set_parent(tilemap.3);
+                )).set_parent(level.2);
             }
             4 if mouse_button.just_pressed(MB::Left) => {
                 commands.spawn(Fan::bundle(
@@ -259,7 +265,7 @@ pub fn edit_world(
                         scale: default(),
                     },
                     &*assets,
-                )).set_parent(tilemap.3);
+                )).set_parent(level.2);
             }
             5 if mouse_button.just_pressed(MB::Left) => {
                 editor.multiselect_coords.0 = pos_on_map;
@@ -280,12 +286,12 @@ pub fn edit_world(
                 else if keys.just_pressed(KC::Down) { IVec2::new(0, -1) } 
                 else { unreachable!() };
                 
-                let tilemap_copy = tilemap.1.tiles.clone();
+                let tilemap_copy = level.1.tiles.clone();
                 
                 let tmultiselect_start: IVec2 = 
-                    (editor.multiselect_coords.0 / 16. - tilemap.0.translation.xy()).as_ivec2();
+                    (editor.multiselect_coords.0 / 16. - level.0.translation.xy()).as_ivec2();
                 let tmultiselect_end: IVec2 = 
-                    (editor.multiselect_coords.1 / 16. - tilemap.0.translation.xy()).as_ivec2();
+                    (editor.multiselect_coords.1 / 16. - level.0.translation.xy()).as_ivec2();
 
                 // not sure why we have to add one here, but otherwise the movement rect
                 // is off.
@@ -296,11 +302,11 @@ pub fn edit_world(
                     for x in tstart.x..tend.x {
                         if !(tstart.y..tend.y).contains(&(y - tmove_dir.y)) || 
                           !(tstart.x..tend.x).contains(&(x - tmove_dir.x)) {
-                            tilemap.1.tiles[y as usize][x as usize] = TileIndex::Air;
+                            level.1.tiles[(x as usize, y as usize)] = TileIndex::Air;
                         }
 
-                        tilemap.1.tiles[(y + tmove_dir.y) as usize][(x + tmove_dir.x) as usize] = 
-                            tilemap_copy[y as usize][x as usize];
+                        level.1.tiles[((x + tmove_dir.x) as usize, (y + tmove_dir.y) as usize)] = 
+                            tilemap_copy[(x as usize, y as usize)];
                     }
                 }
 
@@ -311,29 +317,25 @@ pub fn edit_world(
                 let wstart = tstart.as_vec2() * 16.;
                 let wend = tend.as_vec2() * 16.;
 
-                for object in children.iter_descendants(tilemap.3) {
-                    if let Ok(mut transformation) = other_objects.get_mut(object) {
-                        let pos = &mut transformation.0.translation;
+                for object in children.iter_descendants(level.2) {
+                    if let Ok(mut object) = other_objects.get_mut(object) {
+                        let pos = &mut object.2.translation();
                         if wstart.x <= pos.x && pos.x <= wend.x && 
                           wstart.y <= pos.y && pos.y <= wend.y {
                             *pos += wmove_dir.extend(0.);
                         }
                     }
                 }
-
-                refresh_tilemap(&mut *tilemap.1, &mut *tilemap.2);
             },
             6 if mouse_button.just_pressed(MB::Left) =>  {
                 player.single_mut().translation = pos_on_map.extend(0.);
             },
             7 if mouse_button.just_released(MB::Left) => {
-                for object in children.iter_descendants(tilemap.3) {
-                   if let Ok((mut transformation, _)) = other_objects.get_mut(object) {
+                for object in children.iter_descendants(level.2) {
+                   if let Ok((mut transformation, ..)) = other_objects.get_mut(object) {
                        transformation.translation = 
                            (transformation.translation / 8.).round() * 8.;
                        transformation.scale = transformation.scale.round();
-                       //transformation.rotation.z = 
-                       //    (transformation.rotation.z * (PI / 2.)).round() * (PI / 2.);
                    }
                 }
             },
@@ -343,31 +345,60 @@ pub fn edit_world(
                         transform: Transform::from_translation(pos_on_map.extend(0.)),
                     },
                     &*assets,
-                )).set_parent(tilemap.3);
-            }
-            9 if mouse_button.just_pressed(MB::Left) => {
-                commands.spawn(CameraZone::bundle(
-                    &CameraZoneInWorld {
-                        transform: Transform::from_translation(pos_on_map.extend(0.)),
-                    },
-                    &*assets,
-                )).set_parent(tilemap.3);
+                )).set_parent(level.2);
             }
             _ => {},
         }
     }
 }
 
-fn refresh_tilemap(world: &mut LoadedWorld, tilemap: &mut TileMap) {
-    for (y, row) in world.tiles.iter().enumerate() {
-        for (x, tile) in row.iter().enumerate() {
-            let tile_opt = if *tile == TileIndex::Air { 
-                None 
-            } else { 
-                Some(Tile { sprite_index: *tile as u32, ..default() })
-            };
+// this system triggers both on changes from the editor and from changes on asset loading.
+// i don't really like how these are explicitly hooked up, and i think it would be
+// a better idea to make this a callable function in the future.
+fn refresh_tilemap(
+    mut worlds: Query<
+        (&LoadedLevel, &mut TileStorage, &mut TilemapSize, Option<&Children>, Entity), 
+        Changed<LoadedLevel>
+    >,
+    asset_events: EventReader<AssetEvent<DeLevel>>,
+    tiles: Query<(), Or<(With<TilePos>, With<Collider>)>>,
+    mut commands: Commands,
+) {
+    for mut world in &mut worlds {
+        *world.2 = TilemapSize { x: world.0.tiles.cols() as u32, y: world.0.tiles.rows() as u32};
+        *world.1 = TileStorage::empty(*world.2);
 
-            tilemap.set_tile(IVec3::new(x as i32, y as i32, 0), tile_opt);
+        if asset_events.is_empty() && let Some(children) = world.3 {
+            for child in children {
+                if tiles.get(*child).is_ok() { 
+                    commands.entity(*child).despawn_recursive();
+                }
+            }
+        }
+
+        for ((x, y), tile) in world.0.tiles.indexed_iter() {
+            let tile_pos = TilePos { x: x as u32, y: y as u32 };
+
+            if *tile == TileIndex::Air {
+                // tile is already none, we don't have to set it
+                world.1.remove(&tile_pos);
+            } else {
+                let tile_entity = commands
+                    .spawn(TileBundle {
+                        position: tile_pos,
+                        tilemap_id: TilemapId(world.4),
+                        ..Default::default()
+                    })
+                    .set_parent(world.4)
+                    .id();
+
+                world.1.set(&tile_pos, tile_entity);
+            }
+        }
+
+        let world_colliders = calculate_world_colliders(&world.0.tiles);
+        for collider in world_colliders {
+            commands.spawn(collider).set_parent(world.4);
         }
     }
 }
