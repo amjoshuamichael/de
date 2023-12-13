@@ -26,7 +26,7 @@ pub fn save_world(
         let world_path = asset_server.get_path(world.handle.id()).unwrap();
         let file_path = Path::new("./assets").join(world_path.path());
 
-        info!("saving level asset {file_path:?}");
+        info!("saving world asset {file_path:?}");
 
         let config = PrettyConfig::new();
         let serialized_world = ron::ser::to_string_pretty(&world_to_save, config)

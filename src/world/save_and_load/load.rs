@@ -74,6 +74,7 @@ pub fn setup_world(
     });
 
     commands.spawn((
+        SpatialBundle::default(),
         LoadedWorld { handle: world, ..default() },
         Name::new("World"),
     ));
@@ -85,8 +86,10 @@ pub fn spawn_world_on_load(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut asset_events: EventReader<AssetEvent<DeWorld>>,
-) {
-     for asset_event in asset_events.read() {
+) -> bool {
+    let mut did_spawn = false;
+
+    for asset_event in asset_events.read() {
         let (AssetEvent::Modified { id } | AssetEvent::Added { id }) = *asset_event 
             else { continue };
         
@@ -125,54 +128,63 @@ pub fn spawn_world_on_load(
                         tiles: Grid::new(0, 0),
                     },
                     Name::new(format!("Level {path:?}")),
-                ));
+                )).set_parent(world_object.1);
+
+                did_spawn = true;
             }
         }
-     }
+    }
+
+    did_spawn
 }
 
 pub fn spawn_level_on_load(
+    In(spawned_world_last_frame): In<bool>,
     mut tilemaps: Query<LevelQuery>,
     mut level_assets: ResMut<Assets<DeLevel>>,
     de_assets: Res<MiscAssets>,
     asset_server: Res<AssetServer>,
     mut commands: Commands,
     mut asset_events: EventReader<AssetEvent<DeLevel>>,
-    mut unspawned: Local<Vec<AssetId<DeLevel>>>,
+    mut unspawned_asset_ids: Local<Vec<AssetId<DeLevel>>>,
 ) {
-    let mut unspawned_consume = std::mem::replace(&mut *unspawned, Vec::new());
-    let new_asset_ids = asset_events.read()
-        .filter_map(|asset_event| {
-            let (AssetEvent::Modified { id } | AssetEvent::Added { id }) = *asset_event 
-                else { return None };
-            Some(id)
-        })
-        .chain(unspawned_consume.drain(..));
-        
-    for asset_id in new_asset_ids {
-        let Some(mut tilemap) = 
-            tilemaps.iter_mut().find(|l| l.loaded_level.handle.id() == asset_id)
-            else {
-                info!("{:?}", &unspawned);
-                unspawned.push(asset_id);
-                continue;
-            };
+    if spawned_world_last_frame { return }
 
+    for new_tilemap in tilemaps.iter_mut().filter(|t| t.loaded_level.is_added()) {
+        unspawned_asset_ids.push(new_tilemap.loaded_level.handle.id());
+    }
 
-        let Some(state) = asset_server.get_load_state(tilemap.loaded_level.handle.id()) 
+    for asset_event in asset_events.read() {
+        let (AssetEvent::Modified { id } | AssetEvent::Added { id }) = *asset_event 
             else { continue };
 
-        if state == LoadState::Failed || state == LoadState::Loaded {
-            let level_asset_id = tilemap.loaded_level.handle.id(); 
+        unspawned_asset_ids.push(id);
+    }
 
-            #[cfg(debug_assertions)]
-            if state == LoadState::Failed && level_assets.get(level_asset_id).is_none() {
-                level_assets.insert(level_asset_id, DeLevel::default());
-            }
+    let unspawned_asset_ids_rep = std::mem::replace(&mut *unspawned_asset_ids, Vec::new());
+    for asset_id in unspawned_asset_ids_rep {
+        // TODO: unwrap here?
+        let Some(state) = asset_server.get_load_state(asset_id) 
+            else { continue };
 
+        if state == LoadState::NotLoaded || state == LoadState::Loading { continue }
+
+        #[cfg(debug_assertions)]
+        if state == LoadState::Failed && level_assets.get(asset_id).is_none() {
+            level_assets.insert(asset_id, DeLevel::default());
+        }
+
+        if state != LoadState::Failed && state != LoadState::Loaded { continue }
+
+        let mut tilemaps = tilemaps.iter_mut()
+            .filter(|l| l.loaded_level.handle.id() == asset_id)
+            .collect::<Vec<_>>();
+
+        let level = level_assets.get(asset_id).unwrap();
+
+        for mut tilemap in &mut tilemaps {
             commands.entity(tilemap.entity).despawn_descendants();
 
-            let level = level_assets.get(level_asset_id).unwrap();
             spawn_level(level, &*de_assets, &mut tilemap, &mut commands);
         }
     }

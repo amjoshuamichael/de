@@ -353,7 +353,7 @@ pub fn edit_world(
 }
 
 // this system triggers both on changes from the editor and from changes on asset loading.
-// i don't really like how these are explicitly hooked up, and i think it would be
+// i don't really like how these aren't explicitly hooked up, and i think it would be
 // a better idea to make this a callable function in the future.
 fn refresh_tilemap(
     mut worlds: Query<

@@ -26,8 +26,7 @@ impl Plugin for WorldPlugin {
             .add_systems(Startup, save_and_load::setup_world)
             .add_systems(Update, (
                 save_and_load::save_world,
-                save_and_load::spawn_level_on_load,
-                save_and_load::spawn_world_on_load,
+                save_and_load::spawn_world_on_load.pipe(save_and_load::spawn_level_on_load),
             ))
             .add_state::<WorldEditorState>()
             .add_systems(Update, (
