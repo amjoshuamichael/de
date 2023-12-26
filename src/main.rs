@@ -75,7 +75,8 @@ fn main() {
                  })
                  .set(WindowPlugin {
                      primary_window: Some(Window {
-                         decorations: false,
+                         mode: bevy::window::WindowMode::Windowed,
+                         decorations: true,
                          ..default()
                      }),
                      ..default()

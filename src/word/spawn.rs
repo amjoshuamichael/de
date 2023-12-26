@@ -19,6 +19,7 @@ pub struct WordObject {
 pub struct AdjectiveStates {
     pub wide: bool,
     pub tall: bool,
+    pub fast: bool,
     pub fluttering: Option<FlutteringDirection>,
 }
 
@@ -192,6 +193,7 @@ fn modify_with_adjective(
             match word {
                 WordID::Wide => adjective_states.wide = true,
                 WordID::Tall => adjective_states.tall = true,
+                WordID::Fast => adjective_states.fast = true,
                 WordID::FlutteringUp => 
                     adjective_states.fluttering = Some(FlutteringDirection::Up),
                 WordID::FlutteringRight =>

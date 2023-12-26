@@ -234,7 +234,7 @@ pub fn edit_world(
             1 if mouse_button.just_pressed(MB::Left) => {
                 commands.spawn(WordTag::bundle(
                     &WordTagInWorld {
-                        word_id: WordID::Baby,
+                        word_id: WordID::Fast,
                         transform: Transform::from_translation(pos_on_map.extend(0.)),
                     },
                     &*assets,
@@ -262,7 +262,7 @@ pub fn edit_world(
                         strength: 1.8,
                         translation: pos_on_map,
                         rotation: 0.,
-                        scale: default(),
+                        scale: Vec2::new(1., 1.),
                     },
                     &*assets,
                 )).set_parent(level.2);

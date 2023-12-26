@@ -49,6 +49,7 @@ impl Plugin for PlayerPlugin {
             .add_systems(FixedUpdate, (
                 apply_words::apply_wide,
                 apply_words::apply_tall,
+                apply_words::apply_fast,
                 apply_words::apply_fluttering,
             ).after(SentenceModificationRoutine))
             .add_systems(Startup, movement::spawn_player)
@@ -68,7 +69,7 @@ pub struct Vocabulary {
     words: HashSet<WordID>,
 }
 
-pub const ALL_WORDS: [WordID; 7] = [WordID::Baby, WordID::Wide, WordID::Tall, WordID::Horse,
+pub const ALL_WORDS: [WordID; 8] = [WordID::Baby, WordID::Wide, WordID::Tall, WordID::Fast, WordID::Horse,
     WordID::And, WordID::FlutteringUp, WordID::FlutteringRight];
 
 #[derive(Default, Copy, Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
@@ -77,6 +78,7 @@ pub enum WordID {
     Baby,
     Wide,
     Tall,
+    Fast,
     Horse,
     And,
     FlutteringUp,
@@ -93,6 +95,7 @@ impl WordID {
             WordID::Baby => word("Baby", "baby"),
             WordID::Wide => word("Wide", "wide"),
             WordID::Tall => word("Tall", "tall"),
+            WordID::Fast => word("Fast", "fast"),
             WordID::Horse => word("Horse", "horse"),
             WordID::And => word("And", "and"),
             WordID::FlutteringUp => word("Fluttering", "fluttering_up"),

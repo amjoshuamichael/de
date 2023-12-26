@@ -106,6 +106,14 @@ pub fn apply_tall(
     }
 }
 
+pub fn apply_fast(
+    mut word_objects: Query<QWordObject>,
+) {
+    for mut object in &mut word_objects {
+        let max_speed_added = if object.words.adjectives.fast { 1000. } else { 0. };
+    }
+}
+
 pub fn apply_fluttering(
     mut flutters: Query<QWordObject>,
     parents: Query<&Parent>,
