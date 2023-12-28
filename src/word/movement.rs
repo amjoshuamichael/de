@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use super::{PhraseData, PhraseKind, PhraseID, SentenceStructure, Vocabulary, WordID, ui::VocabChange};
+use super::{PhraseData, PhraseKind, PhraseID, SentenceStructure, Vocabulary, WordID, ui::VocabChange, spawn::*, apply_words::QWordObject};
 
 #[derive(Component, Default)]
 pub struct Player;
@@ -61,14 +61,26 @@ pub fn do_movement(
     sensors: Query<&Sensor>,
     time: Res<Time>,
     phys_context: Res<RapierContext>,
+    word_objects: Query<QWordObject>,
 ) {
     const MAX_X_SPEED: f32 = 32000.0;
     const MOVE_X_ACC: f32 = 0.1;
     let mut player = player.single_mut();
+    let mut fast_multiplier = 1.;
 
     if !player.word_object.valid { return }
 
-    let max_speed = MAX_X_SPEED / player.mass.mass;
+    for child in children.iter_descendants(player.entity) {
+        if let Ok(word_object) = word_objects.get(child) && 
+          word_object.words.adjectives.fast {
+            fast_multiplier = 2.;
+        }
+        else{
+            fast_multiplier = 1.;
+        }
+    }
+
+    let max_speed = MAX_X_SPEED / player.mass.mass * fast_multiplier;
     let goal_speed = if input.pressed(KeyCode::D) {
         max_speed
     } else if input.pressed(KeyCode::A) {

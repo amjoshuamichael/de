@@ -49,7 +49,6 @@ impl Plugin for PlayerPlugin {
             .add_systems(FixedUpdate, (
                 apply_words::apply_wide,
                 apply_words::apply_tall,
-                apply_words::apply_fast,
                 apply_words::apply_fluttering,
             ).after(SentenceModificationRoutine))
             .add_systems(Startup, movement::spawn_player)

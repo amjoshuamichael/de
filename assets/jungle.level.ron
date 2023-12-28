@@ -271,6 +271,14 @@
                 scale: (1.0, 1.0, 1.0),
             ),
         ),
+        (
+            word_id: Fast,
+            transform: (
+                translation: (24.0, 120.0, 0.0),
+                rotation: (0.0, 0.0, 0.0, 1.0),
+                scale: (1.0, 1.0, 1.0),
+            ),
+        ),
     ],
     lock_zones: [],
     fans: [
