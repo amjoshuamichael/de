@@ -30,6 +30,7 @@ impl Plugin for PlayerPlugin {
             .add_event::<SentenceSpawn>()
             .add_event::<VocabChange>()
             .add_systems(Update, (
+                // sentence ui / word remake routine
                 (
                     (ui::do_unsnap, ui::do_drag, ui::do_snap),
                     ui::dock_words_in_sentence_sections
@@ -47,10 +48,7 @@ impl Plugin for PlayerPlugin {
                 (ui::indicate_sentence_section_locks, ui::reorder_sentence_ui),
             )
             .add_systems(FixedUpdate, (
-                apply_words::apply_wide,
-                apply_words::apply_tall,
-                apply_words::apply_baby,
-                apply_words::apply_fast,
+                apply_words::apply_scalers,
                 apply_words::apply_fluttering,
             ).after(SentenceModificationRoutine))
             .add_systems(Startup, movement::spawn_player)

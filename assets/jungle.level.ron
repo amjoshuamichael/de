@@ -292,30 +292,9 @@
     death_zones: [
         (
             transform: (
-                translation: (192.0, 16.0, 0.0),
+                translation: (216.0, 16.0, 0.0),
                 rotation: (0.0, 0.0, 0.0, 1.0),
-                scale: (1.0, 1.0, 1.0),
-            ),
-        ),
-        (
-            transform: (
-                translation: (208.0, 16.0, 0.0),
-                rotation: (0.0, 0.0, 0.0, 1.0),
-                scale: (1.0, 1.0, 1.0),
-            ),
-        ),
-        (
-            transform: (
-                translation: (224.0, 16.0, 0.0),
-                rotation: (0.0, 0.0, 0.0, 1.0),
-                scale: (1.0, 1.0, 1.0),
-            ),
-        ),
-        (
-            transform: (
-                translation: (240.0, 16.0, 0.0),
-                rotation: (0.0, 0.0, 0.0, 1.0),
-                scale: (1.0, 1.0, 1.0),
+                scale: (4.0, 1.0, 1.0),
             ),
         ),
     ],

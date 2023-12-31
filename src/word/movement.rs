@@ -74,8 +74,7 @@ pub fn do_movement(
         if let Ok(word_object) = word_objects.get(child) && 
           word_object.words.adjectives.fast {
             fast_multiplier = 2.;
-        }
-        else{
+        } else {
             fast_multiplier = 1.;
         }
     }

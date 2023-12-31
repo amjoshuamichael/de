@@ -255,6 +255,9 @@ pub fn spawn_snap_for(
     spawned: &mut Vec<Entity>,
 ) -> Entity {
     // TODO: have this return EntityCommands??
+    // TODO: this is all kinds of messed up, i know it searches for a child with a given
+    // component and returns an existing entity or spawns a new one, but i don't know
+    // how - josh
     let mut find_or_spawn = |
         part_id: SentenceUIPart, 
         parent: Entity, 
@@ -420,6 +423,9 @@ pub fn indicate_sentence_section_locks(
     }
 }
 
+// Based on SentenceUIChanged events from previous systems (namely do_snap and do_unsnap),
+// modify the sentence structure. Then, send SentenceStructureChanged events to
+// systems that modify the UI.
 pub fn dock_words_in_sentence_sections(
     docks: Query<&SentenceSection>,
     words: Query<&DraggableWord>,

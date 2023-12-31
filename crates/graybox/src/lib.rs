@@ -19,12 +19,6 @@ pub struct GrayboxPlugin {
     pub open_graybox_command: Vec<KeyCode>,
 }
 
-impl Default for GrayboxPlugin {
-    fn default() -> Self {
-        Self { open_graybox_command: vec![KeyCode::SuperLeft, KeyCode::G] }
-    }
-}
-
 #[derive(States, Default, PartialEq, Eq, Debug, Hash, Clone, Copy)]
 pub enum GrayboxState {
     Opening,

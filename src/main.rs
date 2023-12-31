@@ -87,7 +87,9 @@ fn main() {
             camera::CameraPlugin,
             RapierPhysicsPlugin::<NoUserData>::default(),
             RapierDebugRenderPlugin { enabled: false, ..default() },
-            GrayboxPlugin::default(),
+            GrayboxPlugin {
+                open_graybox_command: vec![CONTROL_KEY, KeyCode::G],
+            },
             FrameStopPlugin,
         ))
         .add_systems(Update, optional_debug_physics_view)
