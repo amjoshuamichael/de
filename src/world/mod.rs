@@ -150,12 +150,16 @@ pub struct LevelQuery {
     entity: Entity,
 }
 
+#[derive(Component, Default)]
+struct WorldCollider;
+
 #[derive(Default, Bundle)]
 struct WorldCollderBundle {
     global: GlobalTransform,
     transform: Transform,
     rigidbody: RigidBody,
     collider: Collider,
+    world_collider: WorldCollider,
 }
 
 fn calculate_world_colliders(tiles: &Grid<TileIndex>) -> Vec<WorldCollderBundle> {

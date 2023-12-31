@@ -361,7 +361,7 @@ fn refresh_tilemap(
         Changed<LoadedLevel>
     >,
     asset_events: EventReader<AssetEvent<DeLevel>>,
-    tiles: Query<(), Or<(With<TilePos>, With<Collider>)>>,
+    tiles: Query<(), Or<(With<TilePos>, With<WorldCollider>)>>,
     mut commands: Commands,
 ) {
     for mut world in &mut worlds {
@@ -370,7 +370,7 @@ fn refresh_tilemap(
 
         if asset_events.is_empty() && let Some(children) = world.3 {
             for child in children {
-                if tiles.get(*child).is_ok() { 
+                if tiles.get(*child).is_ok() {
                     commands.entity(*child).despawn_recursive();
                 }
             }
