@@ -49,6 +49,7 @@ impl Plugin for PlayerPlugin {
             .add_systems(FixedUpdate, (
                 apply_words::apply_wide,
                 apply_words::apply_tall,
+                apply_words::apply_baby,
                 apply_words::apply_fast,
                 apply_words::apply_fluttering,
             ).after(SentenceModificationRoutine))

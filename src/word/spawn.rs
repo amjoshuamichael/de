@@ -20,6 +20,7 @@ pub struct AdjectiveStates {
     pub wide: bool,
     pub tall: bool,
     pub fast: bool,
+    pub baby: bool,
     pub fluttering: Option<FlutteringDirection>,
 }
 
@@ -194,6 +195,7 @@ fn modify_with_adjective(
                 WordID::Wide => adjective_states.wide = true,
                 WordID::Tall => adjective_states.tall = true,
                 WordID::Fast => adjective_states.fast = true,
+                WordID::Baby => adjective_states.baby = true,
                 WordID::FlutteringUp => 
                     adjective_states.fluttering = Some(FlutteringDirection::Up),
                 WordID::FlutteringRight =>

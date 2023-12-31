@@ -1,5 +1,6 @@
 (
     levels: [
+        ((320.0, 0.0, 0.0), "jungle_race.level.ron"),
         ((0.0, 0.0, 0.0), "jungle.level.ron"),
         ((-320.0, -0.0, 0.0), "jungle_wide_tag.level.ron"),
     ],

@@ -8,11 +8,65 @@ pub struct QWordObject {
     pub entity: Entity,
 }
 
+pub fn apply_baby(
+    mut word_objects: Query<(QWordObject, &mut Collider, &GlobalTransform, &mut Transform)>,
+    transforms: Query<&GlobalTransform>,
+    phys_context: Res<RapierContext>,
+){
+    const SHRINK_SPEED: f32 = 0.15;
+
+    for mut object in &mut word_objects {
+        let target_scale = if object.0.words.adjectives.baby { 0.5 } else { 1. };
+        let old_scale = object.3.scale.xy().length();
+        if (old_scale - target_scale).abs() <= 0.01 {
+            dbg!("not babying");
+            continue;
+        }
+
+        let scale_diff = 1. + (target_scale - old_scale) * SHRINK_SPEED;
+
+        info!("scale diff: {}", scale_diff);
+
+        let babied_shape = object.1.as_typed_shape()
+            .raw_scale_by(Vec2::splat(scale_diff), 0)
+            .unwrap();
+        let babied_col = Collider::from(babied_shape);
+
+        let (_, rotation, translation) = object.2.to_scale_rotation_translation();
+
+        let mut pushback_vector = Vec2::ZERO;
+        phys_context.intersections_with_shape(
+            translation.xy(),
+            rotation.z,
+            &babied_col,
+            QueryFilter {
+                exclude_collider: Some(object.0.entity),
+                ..default()
+            },
+            |colliding_shape| {
+                let col_pos = transforms.get(colliding_shape).unwrap().translation();
+                pushback_vector += translation.xy() - col_pos.xy();
+                true
+            },
+        );
+
+        let new_scale = (old_scale * scale_diff);
+
+        pushback_vector = pushback_vector.normalize_or_zero() * 0.1;
+
+        object.3.translation += pushback_vector.extend(0.);
+        info!("new scale: {new_scale}");
+        object.3.scale.x = new_scale;
+        object.3.scale.y = new_scale;
+    }
+}
+
 pub fn apply_wide(
     mut word_objects: Query<(QWordObject, &mut Collider, &GlobalTransform, &mut Transform)>,
     transforms: Query<&GlobalTransform>,
     phys_context: Res<RapierContext>,
 ) {
+    return;
     const WIDEN_SPEED: f32 = 0.15;
 
     for mut object in &mut word_objects {
@@ -62,6 +116,7 @@ pub fn apply_tall(
     all_transforms: Query<&GlobalTransform>,
     phys_context: Res<RapierContext>,
 ) {
+    return;
     const HEIGHTEN_SPEED: f32 = 0.1;
 
     for mut object in &mut word_objects {
