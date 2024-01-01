@@ -67,10 +67,6 @@ pub fn do_drag(
         *left += motion_delta.x;
         let Val::Px(top) = &mut draggable.style.top else { continue };
         *top += motion_delta.y;
-        dbg!(&draggable.style.left);
-        dbg!(&draggable.style.top);
-        dbg!(&draggable.style.position_type);
-        dbg!(&draggable.parent);
     }
 }
 
@@ -99,7 +95,7 @@ pub fn do_snap(
         draggable.set_pos_relative();
         commands.entity(draggable.entity)
             .remove::<Dragging>()
-            .set_parent(dbg!(new_parent));
+            .set_parent(new_parent);
         
         ui_changes.send(SentenceUIChanged { 
             ui_parent: new_parent,
@@ -112,17 +108,25 @@ pub fn do_snap(
 pub fn do_unsnap(
     mut draggables: Query<QDraggableWord, (Changed<Interaction>, Without<Dragging>)>,
     drag_parent: Query<Entity, With<DraggingParent>>,
+    inventory: Query<Entity, With<Inventory>>,
     mut commands: Commands,
     mut ui_changes: EventWriter<SentenceUIChanged>,
 ) {
+    let inventory = inventory.single();
     for mut draggable in &mut draggables {
         if *draggable.interaction == Interaction::Pressed {
-            draggable.set_pos_absolute();
+            if **draggable.parent == inventory {
+                draggable.set_pos_absolute();
 
-            commands.entity(draggable.entity)
-                .insert(Dragging)
-                .set_parent(dbg!(drag_parent.single()));
+                commands.entity(draggable.entity)
+                    .insert(Dragging)
+                    .set_parent(drag_parent.single());
+            } else {
+                commands.entity(draggable.entity)
+                    .set_parent(inventory);
+            }
 
+            
             ui_changes.send(SentenceUIChanged { 
                 ui_parent: **draggable.parent,
                 word_entity: draggable.entity,

@@ -4,6 +4,7 @@ use bevy::ecs::query::{WorldQuery, ReadOnlyWorldQuery};
 use bevy::ecs::system::SystemParam;
 use bevy::input::mouse::MouseMotion;
 use bevy::ui::Interaction;
+use itertools::PeekNth;
 
 use crate::load_assets::MiscAssets;
 
@@ -137,7 +138,6 @@ pub fn setup_word_ui(
                 display: Display::Grid,
                 ..default()
             },
-            background_color: Color::ORANGE.with_a(0.2).into(),
             ..default()
         },
         Name::new("Dragging Parent"),
@@ -153,6 +153,7 @@ pub fn setup_word_ui(
                 justify_content: JustifyContent::Center,
                 width: Val::Percent(100.0),
                 height: Val::Px(100.0),
+                column_gap: Val::Px(20.0),
                 ..default()
             },
             background_color: Color::RED.with_a(0.2).into(),
@@ -234,63 +235,6 @@ pub fn indicate_sentence_section_locks(
     }
 }
 
-// Based on SentenceUIChanged events from previous systems (namely do_snap and do_unsnap),
-// modify the sentence structure. Then, send SentenceStructureChanged events to
-// systems that modify the UI.
-//pub fn dock_words_in_sentence_sections(
-//    docks: Query<&SentenceSection>,
-//    words: Query<&DraggableWord>,
-//    mut sentences: Query<(Entity, &mut SentenceStructure)>,
-//    mut ui_changes: EventReader<SentenceUIChanged>,
-//    mut structure_changes: EventWriter<SentenceStructureChanged>,
-//) {
-//    let mut modified_sentences = HashSet::<Entity>::new();
-//
-//    for ui_change in ui_changes.read() {
-//        // if this isn't a dock, we do nothing
-//        let Ok(dock) = docks.get(ui_change.new_or_old_sentence_parent) else { continue };
-//        let mut sentence_components = sentences.get_mut(dock.sentence_entity).unwrap();
-//        let sentence = &mut sentence_components.1.sentence;
-//        let set_phrase = dock.for_phrase;
-//
-//        let word_id = words.get(ui_change.word).unwrap().word_id;
-//        if ui_change.added {
-//            match word_id {
-//                WordID::And => {
-//                    let existing = sentence[set_phrase];
-//                    let l = sentence.insert(existing);
-//                    let r = sentence.insert(existing);
-//
-//                    sentence[set_phrase] = PhraseData {
-//                        word: Some(WordID::And),
-//                        kind: PhraseKind::Combine { l, r },
-//                        ..default()
-//                    };
-//                }
-//                other_word_id => {
-//                    sentence[set_phrase].word = Some(other_word_id);
-//                }
-//            }
-//        } else {
-//            match word_id {
-//                WordID::And => {
-//                    sentence[set_phrase] = 
-//                        PhraseData { kind: PhraseKind::Adjective, ..default() };
-//                },
-//                _ => sentence[set_phrase].word = None,
-//            }
-//        };
-//
-//        modified_sentences.insert(dock.sentence_entity);
-//    }
-//
-//    for sentence_entity in modified_sentences {
-//        structure_changes.send(SentenceStructureChanged {
-//            on: sentence_entity,
-//        });
-//    }
-//}
-
 pub fn regenerate_sentence_structure(
     words: Query<QDraggableWord>,
     mut sentence_ui_parents: Query<(&SentenceUIParent, Option<&mut Children>)>,
@@ -326,47 +270,102 @@ pub fn regenerate_sentence_structure(
         let root = sentence.sentence.insert(PhraseData::default());
         sentence.root = root;
 
-        parse_noun_phrase(&words, 0, &mut *sentence, root);
+        let mut word_iter = itertools::peek_nth(words.iter());
+        parse_noun_phrase(&mut word_iter, &mut *sentence, root);
+
+        if !word_iter.is_empty() {
+            sentence.sentence = PhraseMap::default();
+        }
 
         structure_changes.send(SentenceStructureChanged { on: sentence_entity });
     }
 }
 
-pub fn parse_noun_phrase(
-    words: &Vec<WordID>, 
-    tok_pos: usize, 
+fn parse_noun_phrase(
+    words: &mut PeekNth<std::slice::Iter<word_id::WordID>>,
     sentence: &mut SentenceStructure,
     insert_into: PhraseID,
 ) {
     use PartOfSpeech::*;
 
-    if words.get(tok_pos).is_none() { return }
+    if words.is_empty() { return }
 
-    if part_of_speech(words.get(tok_pos)).contains(&Adjective) &&
-      part_of_speech(words.get(tok_pos + 1)).contains(&Noun) {
-        let adjective = sentence.sentence.insert(PhraseData {
-            word: Some(words[tok_pos]),
+    let adjective = parse_adjective_phrase(words, sentence);
+
+    if part_of_speech(words.peek().copied()).contains(&Noun) {
+        sentence.sentence[insert_into] = PhraseData {
+            word: Some(*words.next().unwrap()),
+            kind: PhraseKind::Noun { adjective },
+            ..default()
+        }
+    }
+}
+
+fn parse_adjective_phrase(
+    words: &mut PeekNth<std::slice::Iter<word_id::WordID>>,
+    sentence: &mut SentenceStructure,
+) -> PhraseID {
+    use PartOfSpeech::*;
+
+    let peek_speech = part_of_speech(words.peek().copied()); 
+
+    if peek_speech.contains(&Adjective) {
+        if words.peek_nth(1).is_none() && peek_speech.contains(&Noun) {
+            // this is the last word in the sentence - it must be a noun, not an adjective
+            return sentence.sentence.insert(PhraseData {
+                word: None,
+                kind: PhraseKind::Adjective,
+                ..default()
+            });
+        }
+
+        let adjective_word = words.next().unwrap();
+        let adjective_one = sentence.sentence.insert(PhraseData {
+            word: Some(*adjective_word),
             kind: PhraseKind::Adjective,
             ..default()
         });
 
-        sentence.sentence[insert_into] = PhraseData {
-            word: Some(words[tok_pos + 1]),
-            kind: PhraseKind::Noun { adjective },
-            ..default()
+        let conj_word = part_of_speech(words.peek().copied());
+
+        if conj_word.contains(&Conjuction) {
+            let conjunction_word = words.next().unwrap();
+            let adjective_two = parse_adjective_phrase(words, sentence);
+            sentence.sentence.insert(PhraseData {
+                word: Some(*conjunction_word),
+                kind: PhraseKind::Combine {
+                    l: adjective_one,
+                    r: adjective_two,
+                },
+                ..default()
+            })
+        } else {
+            adjective_one
         }
-    } else if part_of_speech(words.get(tok_pos)).contains(&Noun) {
-        let adjective = sentence.sentence.insert(PhraseData {
+    } else if peek_speech.contains(&Conjuction) {
+        let null_adjective = sentence.sentence.insert(PhraseData {
             word: None,
             kind: PhraseKind::Adjective,
             ..default()
         });
 
-        sentence.sentence[insert_into] = PhraseData {
-            word: Some(words[tok_pos]),
-            kind: PhraseKind::Noun { adjective },
+        let conjunction_word = words.next().unwrap();
+        let adjective_two = parse_adjective_phrase(words, sentence);
+
+        sentence.sentence.insert(PhraseData {
+            word: Some(*conjunction_word),
+            kind: PhraseKind::Combine {
+                l: null_adjective,
+                r: adjective_two,
+            },
             ..default()
-        }
+        })
+    } else {
+        sentence.sentence.insert(PhraseData {
+            word: None,
+            kind: PhraseKind::Adjective,
+            ..default()
+        })
     }
 }
 

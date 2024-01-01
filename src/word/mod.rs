@@ -36,23 +36,23 @@ impl Plugin for PlayerPlugin {
             .add_systems(Update, (
                 // sentence ui / word remake routine
                 (
-                    //ui::regenerate_sentence_structure,
+                    ui::regenerate_sentence_structure,
                     ( 
                         ui::do_snap,
                         ui::do_unsnap, 
                         ui::do_drag, 
                     ).chain(),
-                    //spawn::remake_player_character,
-                    //spawn::disable_physics_for_invalid_sentence_structures,
+                    spawn::remake_player_character,
+                    spawn::disable_physics_for_invalid_sentence_structures,
                 ).in_set(SentenceModificationRoutine).chain(),
                 ui::update_vocabulary,
             ))
-            //.add_systems(
-            //    // these run deffered, after the node spawn commands issued by
-            //    // update_sentence_ui.
-            //    PostSentenceModificationActionsSet, 
-            //    (ui::indicate_sentence_section_locks, ui::reorder_sentence_ui),
-            //)
+            .add_systems(
+                // these run deffered, after the node spawn commands issued by
+                // update_sentence_ui.
+                PostSentenceModificationActionsSet, 
+                (ui::indicate_sentence_section_locks, ui::reorder_sentence_ui),
+            )
             .add_systems(FixedUpdate, (
                 apply_words::apply_scalers,
                 apply_words::apply_fluttering,

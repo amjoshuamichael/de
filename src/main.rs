@@ -12,6 +12,7 @@ pub(crate) mod prelude {
         ecs::{query::WorldQuery, system::SystemParam}};
     pub use bevy_rapier2d::prelude::*;
     pub use slotmap::*;
+    pub use itertools::Itertools;
     pub use serde::*;
     pub use graybox::*;
     pub use grid::*;

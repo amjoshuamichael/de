@@ -38,7 +38,7 @@ impl WordID {
         use PartOfSpeech::*;
 
         match self {
-            WordID::Baby => &[Noun],
+            WordID::Baby => &[Noun, Adjective],
             WordID::Wide => &[Adjective],
             WordID::Tall => &[Adjective],
             WordID::Fast => &[Adjective],

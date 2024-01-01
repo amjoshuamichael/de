@@ -13,6 +13,7 @@ ron = "*"
 serde = "*"
 grid = { version = "0.12.0", features = ["serde"] }
 slotmap = "1.0.6"
+itertools = "0.12"
 
 graybox = { path = "crates/graybox" }
 #blackbox = { path = "crates/blackbox" }

@@ -95,6 +95,8 @@ fn spawn_with_noun(
     children: &Query<&Children>,
     word_objects: &Query<&WordObject>,
 ) -> Result<SpawnResult, SentenceParseError> {
+    if sentence.0.sentence.is_empty() { return Err(SentenceParseError::Other) }
+
     match sentence.0.sentence[word] {
         PhraseData { word: None, .. } => return Err(SentenceParseError::Other),
         PhraseData { word: Some(noun_word), kind: PhraseKind::Noun { adjective }, .. } => {
