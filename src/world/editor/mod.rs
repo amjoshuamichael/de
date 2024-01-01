@@ -146,9 +146,11 @@ pub fn edit_world(
     mut levels: Query<(&Transform, &mut LoadedLevel, Entity)>,
     placement_dropdown: Query<&Dropdown, With<PlacementDropdown>>,
     mut player: Query<&mut Transform, (With<Player>, Without<LoadedLevel>)>,
-    mut other_objects: Query<(&mut Transform, Option<&Collider>, &GlobalTransform), 
+    mut other_objects: Query<(&mut Transform, Option<&Collider>, &GlobalTransform, Entity), 
                              (Without<Player>, Without<LoadedLevel>)>,
     children: Query<&Children>,
+    parent: Query<&Parent>,
+    tile_query: Query<Entity, Or<(With<TilePos>, With<WorldCollider>)>>,
     mouse_button: Res<Input<MouseButton>>,
     keys: Res<Input<KeyCode>>,
     mouse_world_coords: Res<MouseWorldCoords>,
@@ -172,7 +174,7 @@ pub fn edit_world(
         gizmos.circle_2d(pos_on_map, 10.0, Color::GREEN);
 
         for object in children.iter_descendants(level.2) {
-           if let Ok((transformation, collider, global)) = other_objects.get_mut(object) {
+           if let Ok((_, collider, global, _)) = other_objects.get_mut(object) {
                if let Some(collider) = collider {
                    match collider.as_typed_shape() {
                        ColliderView::Cuboid(CuboidView { raw }) => {
@@ -228,6 +230,24 @@ pub fn edit_world(
                     } else {
                         TileIndex::Air
                     };
+
+                let intersecting_iter = other_objects.iter().filter(|object| {
+                    if !parent.iter_ancestors(object.3).any(|entity| level.2 == entity) ||
+                      tile_query.contains(object.3) {
+                        return false;
+                    }
+
+                    if let Some(collider) = object.1 {
+                        let (_, rotation, translation) = object.2.to_scale_rotation_translation();
+                        collider.contains_point(translation.xy(), rotation.z, pos_on_map)
+                    } else {
+                        false
+                    }
+                });
+
+                for entity in intersecting_iter {
+                    commands.entity(entity.3).despawn_recursive();
+                }
 
                 tiles[(tile_pos.0, tile_pos.1)] = tile;
             },
