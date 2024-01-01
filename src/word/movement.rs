@@ -8,7 +8,7 @@ pub struct Player;
 pub fn spawn_player(
     mut commands: Commands,
     mut vocab_changes: EventWriter<VocabChange>,
-) {
+) -> Entity {
     let player = commands.spawn((
         Player,
         SpatialBundle::default(),
@@ -39,6 +39,12 @@ pub fn spawn_player(
         word: WordID::Baby,
         to: player,
     });
+    vocab_changes.send(VocabChange::Added {
+        word: WordID::Wide,
+        to: player,
+    });
+
+    player
 }
 
 #[derive(WorldQuery)]
